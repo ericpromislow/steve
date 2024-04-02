@@ -204,27 +204,33 @@ func tableToObjects(obj map[string]interface{}) []unstructured.Unstructured {
 // With this filter, the request can be performed successfully, and only the allowed resources will
 // be returned in the list.
 func (s *Store) ByNames(apiOp *types.APIRequest, schema *types.APISchema, names sets.String) (*unstructured.UnstructuredList, []types.Warning, error) {
-	if apiOp.Namespace == "*" {
-		// This happens when you grant namespaced objects with "get" or "list "by name in a clusterrolebinding.
-		// We will treat this as an invalid situation instead of listing all objects in the cluster
-		// and filtering by name.
-		return &unstructured.UnstructuredList{}, nil, nil
-	}
+	//if apiOp.Namespace == "*" {
+	//	// This happens when you grant namespaced objects with "get" or "list "by name in a clusterrolebinding.
+	//	// We will treat this as an invalid situation instead of listing all objects in the cluster
+	//	// and filtering by name.
+	//	return &unstructured.UnstructuredList{}, nil, nil
+	//}
+	logrus.Infof("QQQ: >> Store.ByNames..")
 	buffer := WarningBuffer{}
 	adminClient, err := s.clientGetter.TableAdminClient(apiOp, schema, apiOp.Namespace, &buffer)
 	if err != nil {
+		logrus.Infof("QQQ: Store.ByNames: s.clientGetter.TableAdminClient => error %s", err)
 		return nil, nil, err
 	}
 
 	objs, err := s.list(apiOp, schema, adminClient)
 	if err != nil {
+		logrus.Infof("QQQ: Store.ByNames: s.list => error %s", err)
 		return nil, nil, err
 	}
 
 	var filtered []unstructured.Unstructured
 	for _, obj := range objs.Items {
 		if names.Has(obj.GetName()) {
+			logrus.Infof("QQQ: Store.ByNames: include name %s", obj.GetName())
 			filtered = append(filtered, obj)
+		} else {
+			logrus.Infof("QQQ: Store.ByNames: exclude name %s", obj.GetName())
 		}
 	}
 

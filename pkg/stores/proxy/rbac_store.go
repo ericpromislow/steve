@@ -9,6 +9,7 @@ import (
 	"github.com/rancher/steve/pkg/attributes"
 	"github.com/rancher/steve/pkg/stores/partition"
 	"github.com/rancher/wrangler/pkg/kv"
+	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/watch"
@@ -102,12 +103,15 @@ type byNameOrNamespaceStore struct {
 
 // List returns a list of resources by partition.
 func (b *byNameOrNamespaceStore) List(apiOp *types.APIRequest, schema *types.APISchema) (*unstructured.UnstructuredList, []types.Warning, error) {
+	logrus.Infof("QQQ: >> byNameOrNamespaceStore.List(op: %v, schema: %v", apiOp, schema)
 	if b.partition.Passthrough {
+		logrus.Infof("QQQ: bNOrNStore: b.partition.Passthrough is on")
 		return b.Store.List(apiOp, schema)
 	}
 
 	apiOp.Namespace = b.partition.Namespace
 	if b.partition.All {
+		logrus.Infof("QQQ: bNOrNStore: b.partition.All is on")
 		return b.Store.List(apiOp, schema)
 	}
 	return b.Store.ByNames(apiOp, schema, b.partition.Names)
