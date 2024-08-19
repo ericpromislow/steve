@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/rancher/steve/pkg/debug"
@@ -25,6 +26,7 @@ func main() {
 		stevecli.Flags(&config),
 		debug.Flags(&debugconfig)...)
 	app.Action = run
+	fmt.Fprintf(os.Stderr, "Ready are we recording\n")
 
 	if err := app.Run(os.Args); err != nil {
 		logrus.Fatal(err)

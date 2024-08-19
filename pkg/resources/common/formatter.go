@@ -14,6 +14,7 @@ import (
 	corecontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/v3/pkg/slice"
 	"github.com/rancher/wrangler/v3/pkg/summary"
+	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -24,6 +25,8 @@ func DefaultTemplate(clientGetter proxy.ClientGetter,
 	summaryCache *summarycache.SummaryCache,
 	asl accesscontrol.AccessSetLookup,
 	namespaceCache corecontrollers.NamespaceCache) schema.Template {
+	logrus.Infof("QQQ: using DefaultTemplate")
+	logrus.Infof("QQQ: formatter: %v", formatter(summaryCache))
 	return schema.Template{
 		Store:     metricsStore.NewMetricsStore(proxy.NewProxyStore(clientGetter, summaryCache, asl, namespaceCache)),
 		Formatter: formatter(summaryCache),
@@ -32,6 +35,8 @@ func DefaultTemplate(clientGetter proxy.ClientGetter,
 
 // DefaultTemplateForStore provides a default schema template which uses a provided, pre-initialized store. Primarily used when creating a Template that uses a Lasso SQL store internally.
 func DefaultTemplateForStore(store types.Store, summaryCache *summarycache.SummaryCache) schema.Template {
+	logrus.Infof("QQQ: using DefaultTemplateForStore")
+	logrus.Infof("QQQ: formatter: %v", formatter(summaryCache))
 	return schema.Template{
 		Store:     store,
 		Formatter: formatter(summaryCache),
@@ -39,6 +44,8 @@ func DefaultTemplateForStore(store types.Store, summaryCache *summarycache.Summa
 }
 
 func selfLink(gvr schema2.GroupVersionResource, meta metav1.Object) (prefix string) {
+	logrus.Infof("QQQ: >> selfLink")
+	defer logrus.Infof("QQQ: << selfLink")
 	buf := &strings.Builder{}
 	if gvr.Group == "management.cattle.io" && gvr.Version == "v3" {
 		buf.WriteString("/v1/")
@@ -68,11 +75,15 @@ func selfLink(gvr schema2.GroupVersionResource, meta metav1.Object) (prefix stri
 	}
 	buf.WriteString("/")
 	buf.WriteString(meta.GetName())
+	logrus.Infof("QQQ: selfLink => %s", buf.String())
 	return buf.String()
 }
 
 func formatter(summarycache *summarycache.SummaryCache) types.Formatter {
 	return func(request *types.APIRequest, resource *types.RawResource) {
+
+		logrus.Infof("QQQ: >> formatterFunc")
+		defer logrus.Infof("QQQ: << formatterFunc")
 		if resource.Schema == nil {
 			return
 		}
@@ -103,6 +114,7 @@ func formatter(summarycache *summarycache.SummaryCache) types.Formatter {
 			resource.Links["remove"] = "blocked"
 		}
 
+		logrus.Infof("QQQ: before unstr stuff, resource.Links: %s", resource.Links)
 		if unstr, ok := resource.APIObject.Object.(*unstructured.Unstructured); ok {
 			s, rel := summarycache.SummaryAndRelationship(unstr)
 			data.PutValue(unstr.Object, map[string]interface{}{

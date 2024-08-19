@@ -1,8 +1,6 @@
-module github.com/rancher/steve
+module github.com/ericpromislow/steve
 
-go 1.22.0
-
-toolchain go1.22.2
+go 1.23.0
 
 replace (
 	github.com/crewjam/saml => github.com/rancher/saml v0.2.0
@@ -25,6 +23,7 @@ require (
 	github.com/rancher/lasso v0.0.0-20240809125800-8da6f11865d5
 	github.com/rancher/norman v0.0.0-20240708202514-a0127673d1b9
 	github.com/rancher/remotedialer v0.3.2
+	github.com/rancher/steve v0.0.0-20240816233215-6d0d007ad5ad
 	github.com/rancher/wrangler/v3 v3.0.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.9.0
