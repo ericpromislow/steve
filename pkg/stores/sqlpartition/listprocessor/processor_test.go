@@ -238,6 +238,70 @@ func TestParseQuery(t *testing.T) {
 		},
 	})
 	tests = append(tests, testCase{
+		description: "ParseQuery(): like previous, but spaces are not ignored .",
+		req: &types.APIRequest{
+			Request: &http.Request{
+				URL: &url.URL{RawQuery: "filter=a= c "},
+			},
+		},
+		expectedLO: informer.ListOptions{
+			ChunkSize: defaultLimit,
+			Filters: []informer.OrFilter{
+				{
+					Filters: []informer.Filter{
+						{
+							Field:   []string{"a"},
+							Match:   " c ",
+							Op:      "",
+							Partial: true,
+						},
+					},
+				},
+			},
+			Pagination: informer.Pagination{
+				Page: 1,
+			},
+		},
+		setupNSCache: func() Cache {
+			return nil
+		},
+	})
+	tests = append(tests, testCase{
+		description: "ParseQuery(): like previous, can't handle commas in a string value.",
+		req: &types.APIRequest{
+			Request: &http.Request{
+				URL: &url.URL{RawQuery: `filter=a1="has,comma",a2=no-comma`},
+			},
+		},
+		expectedLO: informer.ListOptions{
+			ChunkSize: defaultLimit,
+			Filters: []informer.OrFilter{
+				{
+					Filters: []informer.Filter{
+						{
+							Field:   []string{"a1"},
+							Match:   `"has,comma"`,
+							Op:      "",
+							Partial: false,
+						},
+						{
+							Field:   []string{"a2"},
+							Match:   "no-comma",
+							Op:      "",
+							Partial: true,
+						},
+					},
+				},
+			},
+			Pagination: informer.Pagination{
+				Page: 1,
+			},
+		},
+		setupNSCache: func() Cache {
+			return nil
+		},
+	})
+	tests = append(tests, testCase{
 		description: "ParseQuery() with filter param set, with value in single quotes, should include filter with partial set to false in list options.",
 		req: &types.APIRequest{
 			Request: &http.Request{
