@@ -14,6 +14,7 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/data"
 	corecontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/v3/pkg/summary"
+	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -75,25 +76,31 @@ func selfLink(gvr schema2.GroupVersionResource, meta metav1.Object) (prefix stri
 
 func formatter(summarycache *summarycache.SummaryCache, asl accesscontrol.AccessSetLookup) types.Formatter {
 	return func(request *types.APIRequest, resource *types.RawResource) {
+		logrus.Infof("QQQ: >> formatter callback...")
 		if resource.Schema == nil {
+			logrus.Infof("QQQ: >> no schema, return")
 			return
 		}
 
 		gvr := attributes.GVR(resource.Schema)
 		if gvr.Version == "" {
+			logrus.Infof("QQQ: >> no version in schema, return")
 			return
 		}
 
 		meta, err := meta.Accessor(resource.APIObject.Object)
 		if err != nil {
+			logrus.Infof("QQQ: >> failed to get meta.Accessor: %s, return", err)
 			return
 		}
 		userInfo, ok := request.GetUserInfo()
 		if !ok {
+			logrus.Infof("QQQ: >> no user info, return")
 			return
 		}
 		accessSet := asl.AccessFor(userInfo)
 		if accessSet == nil {
+			logrus.Infof("QQQ: >> no accessSet, return")
 			return
 		}
 		hasUpdate := accessSet.Grants("update", gvr.GroupResource(), resource.APIObject.Namespace(), resource.APIObject.Name())
@@ -104,6 +111,7 @@ func formatter(summarycache *summarycache.SummaryCache, asl accesscontrol.Access
 		u := request.URLBuilder.RelativeToRoot(selfLink)
 		resource.Links["view"] = u
 
+		logrus.Infof("QQQ: hasUpdate: %t, hasDelete: %t", hasUpdate, hasDelete)
 		if hasUpdate {
 			if attributes.DisallowMethods(resource.Schema)[http.MethodPut] {
 				resource.Links["update"] = "blocked"
@@ -122,6 +130,7 @@ func formatter(summarycache *summarycache.SummaryCache, asl accesscontrol.Access
 		if unstr, ok := resource.APIObject.Object.(*unstructured.Unstructured); ok {
 			// with the sql cache, these were already added by the indexer. However, the sql cache
 			// is only used for lists, so we need to re-add here for get/watch
+			logrus.Infof("QQQ: >> casted resource.APIObj to u.U, continuing...")
 			s, rel := summarycache.SummaryAndRelationship(unstr)
 			data.PutValue(unstr.Object, map[string]interface{}{
 				"name":          s.State,
@@ -143,10 +152,12 @@ func formatter(summarycache *summarycache.SummaryCache, asl accesscontrol.Access
 
 func includeFields(request *types.APIRequest, unstr *unstructured.Unstructured) {
 	if fields, ok := request.Query["include"]; ok {
+		logrus.Infof("QQQ: includeFields: fields: %v", fields)
 		newObj := map[string]interface{}{}
 		for _, f := range fields {
 			fieldParts := strings.Split(f, ".")
 			if val, ok := data.GetValue(unstr.Object, fieldParts...); ok {
+				logrus.Infof("QQQ: >> includeFields: newObj[%s] <- %s", val, f)
 				data.PutValue(newObj, val, fieldParts...)
 			}
 		}
@@ -156,8 +167,10 @@ func includeFields(request *types.APIRequest, unstr *unstructured.Unstructured) 
 
 func excludeFields(request *types.APIRequest, unstr *unstructured.Unstructured) {
 	if fields, ok := request.Query["exclude"]; ok {
+		logrus.Infof("QQQ: excludeFields: fields: %v", fields)
 		for _, f := range fields {
 			fieldParts := strings.Split(f, ".")
+			logrus.Infof("QQQ: >> excludeFields: drop unstr.Object[%s]", f)
 			data.RemoveValue(unstr.Object, fieldParts...)
 		}
 	}
@@ -165,11 +178,13 @@ func excludeFields(request *types.APIRequest, unstr *unstructured.Unstructured) 
 
 func excludeValues(request *types.APIRequest, unstr *unstructured.Unstructured) {
 	if values, ok := request.Query["excludeValues"]; ok {
+		logrus.Infof("QQQ: excludeValues: values: %v", values)
 		for _, f := range values {
 			fieldParts := strings.Split(f, ".")
 			fieldValues := data.GetValueN(unstr.Object, fieldParts...)
 			if obj, ok := fieldValues.(map[string]interface{}); ok {
 				for k := range obj {
+					logrus.Infof("QQQ: excludeValues: set unstr.Object[''] to %v", append(fieldParts, k))
 					data.PutValue(unstr.Object, "", append(fieldParts, k)...)
 				}
 			}
