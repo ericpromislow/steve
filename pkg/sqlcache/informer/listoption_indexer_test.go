@@ -704,9 +704,10 @@ func TestListByOptions(t *testing.T) {
   JOIN "something_fields" f ON o.key = f.key
   LEFT OUTER JOIN "something_labels" lt2 ON o.key = lt2.key
   WHERE
+    (lt2.label = ?) AND
     (FALSE)
   ORDER BY f."metadata.fields[3]" ASC, (CASE lt2.label WHEN "stub.io/candy" THEN lt2.value ELSE NULL END) ASC NULLS LAST`,
-		expectedStmtArgs:  []any{},
+		expectedStmtArgs:  []any{"stub.io/candy"},
 		returnList:        []any{&unstructured.Unstructured{Object: unstrTestObjectMap}, &unstructured.Unstructured{Object: unstrTestObjectMap}},
 		expectedList:      &unstructured.UnstructuredList{Object: map[string]interface{}{"items": []map[string]interface{}{unstrTestObjectMap, unstrTestObjectMap}}, Items: []unstructured.Unstructured{{Object: unstrTestObjectMap}, {Object: unstrTestObjectMap}}},
 		expectedContToken: "",
@@ -1568,9 +1569,10 @@ func TestConstructQuery(t *testing.T) {
   JOIN "something_fields" f ON o.key = f.key
   LEFT OUTER JOIN "something_labels" lt1 ON o.key = lt1.key
   WHERE
+    (lt1.label = ?) AND
     (FALSE)
   ORDER BY (CASE lt1.label WHEN "this" THEN lt1.value ELSE NULL END) ASC NULLS LAST`,
-		expectedStmtArgs: []any{},
+		expectedStmtArgs: []any{"this"},
 		expectedErr:      nil,
 	})
 
@@ -1605,10 +1607,10 @@ func TestConstructQuery(t *testing.T) {
   LEFT OUTER JOIN "something_labels" lt1 ON o.key = lt1.key
   LEFT OUTER JOIN "something_labels" lt2 ON o.key = lt2.key
   WHERE
-    ((f."metadata.queryField1" = ?) OR (lt1.label = ? AND lt1.value = ?)) AND
+    ((f."metadata.queryField1" = ?) OR (lt1.label = ? AND lt1.value = ?) OR (lt1.label = ?) OR (lt2.label = ?)) AND
     (FALSE)
   ORDER BY (CASE lt1.label WHEN "this" THEN lt1.value ELSE (CASE lt2.label WHEN "this" THEN lt2.value ELSE NULL END) END) ASC NULLS LAST, f."status.queryField2" DESC`,
-		expectedStmtArgs: []any{"toys", "jamb", "juice"},
+		expectedStmtArgs: []any{"toys", "jamb", "juice", "this", "this"},
 		expectedErr:      nil,
 	})
 
@@ -1637,6 +1639,9 @@ func TestConstructQuery(t *testing.T) {
 			lii := &ListOptionIndexer{
 				Indexer:       i,
 				indexedFields: []string{"metadata.queryField1", "status.queryField2"},
+			}
+			if test.description == "TestConstructQuery: sort and query on both labels and non-labels without overlap" {
+				fmt.Printf("stop here")
 			}
 			queryInfo, err := lii.constructQuery(test.listOptions, test.partitions, test.ns, "something")
 			if test.expectedErr != nil {

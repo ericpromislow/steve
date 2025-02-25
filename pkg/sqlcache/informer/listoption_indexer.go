@@ -266,10 +266,19 @@ type QueryInfo struct {
 	offset      int
 }
 
+func addLabelNames(labelNamesSelectedTracker map[string]bool, orFilters OrFilter) {
+	for _, filter := range orFilters.Filters {
+		if isLabelFilter(&filter) {
+			labelNamesSelectedTracker[filter.Field[2]] = true
+		}
+	}
+}
+
 func (l *ListOptionIndexer) constructQuery(lo ListOptions, partitions []partition.Partition, namespace string, dbName string) (*QueryInfo, error) {
 	queryInfo := &QueryInfo{}
 	queryUsesLabels := hasLabelFilter(lo.Filters) || hasLabelSort(lo.Sort)
 	joinTableIndices := make([]int, 0)
+	labelNamesSelectedTracker := make(map[string]bool)
 
 	// First, what kind of filtering will we be doing?
 	// 1- Intro: SELECT and JOIN clauses
@@ -290,6 +299,7 @@ func (l *ListOptionIndexer) constructQuery(lo ListOptions, partitions []partitio
 				query += "\n  "
 				// Make the lt index 1-based for readability
 				query += fmt.Sprintf(`LEFT OUTER JOIN "%s_labels" lt%d ON o.key = lt%d.key`, dbName, i+1, i+1)
+				addLabelNames(labelNamesSelectedTracker, orFilters)
 			}
 		}
 		if hasLabelSort(lo.Sort) {
@@ -300,7 +310,9 @@ func (l *ListOptionIndexer) constructQuery(lo ListOptions, partitions []partitio
 					joinTableIndices = append(joinTableIndices, i+offset)
 					query += "\n  "
 					query += fmt.Sprintf(`LEFT OUTER JOIN "%s_labels" lt%d ON o.key = lt%d.key`, dbName, i+offset, i+offset)
-
+					if _, ok := labelNamesSelectedTracker[fields[2]]; !ok {
+						labelNamesSelectedTracker[fields[2]] = false
+					}
 				}
 			}
 		}
@@ -309,16 +321,29 @@ func (l *ListOptionIndexer) constructQuery(lo ListOptions, partitions []partitio
 
 	// 2- Filtering: WHERE clauses (from lo.Filters)
 	whereClauses := []string{}
-	for i, orFilters := range lo.Filters {
-		orClause, orParams, err := l.buildORClauseFromFilters(i+1, orFilters, dbName)
-		if err != nil {
-			return queryInfo, err
+	if len(lo.Filters) == 0 {
+		if queryUsesLabels {
+			orClause, orParams, err := l.buildORClauseFromFilters(0, OrFilter{}, dbName, labelNamesSelectedTracker, joinTableIndices)
+			if err != nil {
+				return queryInfo, err
+			}
+			if orClause != "" {
+				whereClauses = append(whereClauses, orClause)
+				params = append(params, orParams...)
+			}
 		}
-		if orClause == "" {
-			continue
+	} else {
+		for i, orFilters := range lo.Filters {
+			orClause, orParams, err := l.buildORClauseFromFilters(i+1, orFilters, dbName, labelNamesSelectedTracker, joinTableIndices)
+			if err != nil {
+				return queryInfo, err
+			}
+			if orClause == "" {
+				continue
+			}
+			whereClauses = append(whereClauses, orClause)
+			params = append(params, orParams...)
 		}
-		whereClauses = append(whereClauses, orClause)
-		params = append(params, orParams...)
 	}
 
 	// WHERE clauses (from namespace)
@@ -542,16 +567,22 @@ func (l *ListOptionIndexer) validateColumn(column string) error {
 }
 
 // buildORClause creates an SQLite compatible query that ORs conditions built from passed filters
-func (l *ListOptionIndexer) buildORClauseFromFilters(index int, orFilters OrFilter, dbName string) (string, []any, error) {
+func (l *ListOptionIndexer) buildORClauseFromFilters(index int, orFilters OrFilter, dbName string, labelNamesSelectedTracker map[string]bool, joinTableIndices []int) (string, []any, error) {
 	var params []any
 	clauses := make([]string, 0, len(orFilters.Filters))
 	var newParams []any
 	var newClause string
 	var err error
+	explicitJoinTablesByLabelName := make(map[string]map[int]bool)
 
 	for _, filter := range orFilters.Filters {
 		if isLabelFilter(&filter) {
 			newClause, newParams, err = l.getLabelFilter(index, filter, dbName)
+			_, ok := explicitJoinTablesByLabelName[filter.Field[2]]
+			if !ok {
+				explicitJoinTablesByLabelName[filter.Field[2]] = make(map[int]bool)
+			}
+			explicitJoinTablesByLabelName[filter.Field[2]][index] = true
 		} else {
 			newClause, newParams, err = l.getFieldFilter(filter)
 		}
@@ -560,6 +591,21 @@ func (l *ListOptionIndexer) buildORClauseFromFilters(index int, orFilters OrFilt
 		}
 		clauses = append(clauses, newClause)
 		params = append(params, newParams...)
+	}
+	for labelName, entered := range labelNamesSelectedTracker {
+		if !entered {
+			indexMap, ok := explicitJoinTablesByLabelName[labelName]
+			if !ok {
+				indexMap = make(map[int]bool)
+			}
+			for _, val := range joinTableIndices {
+				_, ok := indexMap[val]
+				if !ok {
+					clauses = append(clauses, fmt.Sprintf("lt%d.label = ?", val))
+					params = append(params, labelName)
+				}
+			}
+		}
 	}
 	switch len(clauses) {
 	case 0:
