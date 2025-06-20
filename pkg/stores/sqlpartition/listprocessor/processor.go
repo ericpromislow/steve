@@ -29,6 +29,10 @@ const (
 	revisionParam           = "revision"
 	projectsOrNamespacesVar = "projectsornamespaces"
 	projectIDFieldLabel     = "field.cattle.io/projectId"
+	// Temporary support for pre-SQL parameters
+	legacyLimitParam         = "limit"
+	legacyLabelSelectorParam = "labelSelector"
+	legacyFieldSelectorParam = "fieldSelector"
 
 	orOp  = ","
 	notOp = "!"
@@ -86,11 +90,11 @@ func ParseQuery(apiOp *types.APIRequest, namespaceCache Cache) (sqltypes.ListOpt
 	q := apiOp.Request.URL.Query()
 
 	filterParams := q[filterParam]
-	fieldSelectors := q["fieldSelector"]
+	fieldSelectors := q[legacyFieldSelectorParam]
 	if len(fieldSelectors) > 0 {
 		filterParams = append(filterParams, fieldSelectors...)
 	}
-	labelSelectors := q["labelSelector"]
+	labelSelectors := q[legacyLabelSelectorParam]
 	if len(labelSelectors) > 0 {
 		for _, labelSelector := range labelSelectors {
 			if labelSelector == "" {
@@ -148,14 +152,26 @@ func ParseQuery(apiOp *types.APIRequest, namespaceCache Cache) (sqltypes.ListOpt
 	}
 
 	var err error
+	havePageSize := true
 	pagination := sqltypes.Pagination{}
 	pagination.PageSize, err = strconv.Atoi(q.Get(pageSizeParam))
 	if err != nil {
 		pagination.PageSize = 0
+		havePageSize = false
 	}
 	pagination.Page, err = strconv.Atoi(q.Get(pageParam))
 	if err != nil {
 		pagination.Page = 1
+	}
+
+	legacyLimitStr := q.Get(legacyLimitParam)
+	if legacyLimitStr != "" {
+		if havePageSize {
+			return opts, fmt.Errorf("cannot specify both %s and %s (prefer %s)", legacyLimitParam, pageSizeParam, pageSizeParam)
+		}
+		if legacyLimit, err := strconv.Atoi(legacyLimitStr); err == nil {
+			pagination.PageSize = legacyLimit
+		}
 	}
 	opts.Pagination = pagination
 

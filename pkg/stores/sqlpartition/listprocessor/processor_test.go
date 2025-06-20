@@ -929,11 +929,10 @@ func TestParseQuery(t *testing.T) {
 		},
 	})
 	tests = append(tests, testCase{
-		description: "ParseQuery() with no errors returned should returned no errors. If pagesize param is given, pageSize" +
-			" should be set with assigned value.",
+		description: "Map legacy limit param to pagesize",
 		req: &types.APIRequest{
 			Request: &http.Request{
-				URL: &url.URL{RawQuery: "pagesize=20"},
+				URL: &url.URL{RawQuery: "limit=20"},
 			},
 		},
 		expectedLO: sqltypes.ListOptions{
@@ -941,6 +940,41 @@ func TestParseQuery(t *testing.T) {
 			Pagination: sqltypes.Pagination{
 				PageSize: 20,
 				Page:     1,
+			},
+		},
+	})
+	tests = append(tests, testCase{
+		description: "Complain if both pagesize and legacy limit param are specified",
+		req: &types.APIRequest{
+			Request: &http.Request{
+				URL: &url.URL{RawQuery: "limit=20&pagesize=12"},
+			},
+		},
+		errExpected: true,
+		errorText:   "cannot specify both limit and pagesize (prefer pagesize)",
+	})
+	tests = append(tests, testCase{
+		description: "legacy LabelSelector query is mapped to a labels filter",
+		req: &types.APIRequest{
+			Request: &http.Request{
+				URL: &url.URL{RawQuery: "labelSelector=grover.example.com/fish=heads"},
+			},
+		},
+		expectedLO: sqltypes.ListOptions{
+			Filters: []sqltypes.OrFilter{
+				{
+					Filters: []sqltypes.Filter{
+						{
+							Field:   []string{"metadata", "labels", "grover.example.com/fish"},
+							Matches: []string{"heads"},
+							Op:      sqltypes.Eq,
+							Partial: false,
+						},
+					},
+				},
+			},
+			Pagination: sqltypes.Pagination{
+				Page: 1,
 			},
 		},
 	})
