@@ -16,6 +16,7 @@ import (
 	"github.com/rancher/steve/pkg/stores/sqlpartition/queryparser"
 	"github.com/rancher/steve/pkg/stores/sqlpartition/selection"
 	"github.com/rancher/wrangler/v3/pkg/schemas/validation"
+	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -85,6 +86,25 @@ func ParseQuery(apiOp *types.APIRequest, namespaceCache Cache) (sqltypes.ListOpt
 	q := apiOp.Request.URL.Query()
 
 	filterParams := q[filterParam]
+	fieldSelectors := q["fieldSelector"]
+	if len(fieldSelectors) > 0 {
+		filterParams = append(filterParams, fieldSelectors...)
+	}
+	labelSelectors := q["labelSelector"]
+	if len(labelSelectors) > 0 {
+		for _, labelSelector := range labelSelectors {
+			if labelSelector == "" {
+				continue
+			}
+			parts := strings.SplitN(labelSelector, "=", 2)
+			if len(parts) < 2 {
+				logrus.Infof("invalid label selector: %q: no equal-sign", labelSelector)
+				continue
+			}
+			filter := fmt.Sprintf("metadata.labels[%s]=%s", parts[0], parts[1])
+			filterParams = append(filterParams, filter)
+		}
+	}
 	filterOpts := []sqltypes.OrFilter{}
 	for _, filters := range filterParams {
 		requirements, err := queryparser.ParseToRequirements(filters)

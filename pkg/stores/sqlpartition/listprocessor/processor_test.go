@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/rancher/apiserver/pkg/types"
@@ -316,6 +317,55 @@ func TestParseQuery(t *testing.T) {
 							Matches: []string{"heads"},
 							Op:      sqltypes.Eq,
 							Partial: true,
+						},
+					},
+				},
+			},
+			Pagination: sqltypes.Pagination{
+				Page: 1,
+			},
+		},
+	})
+	tests = append(tests, testCase{
+		description: "legacy LabelSelector query is mapped to a labels filter",
+		req: &types.APIRequest{
+			Request: &http.Request{
+				URL: &url.URL{RawQuery: "labelSelector=grover.example.com/fish=heads"},
+			},
+		},
+		expectedLO: sqltypes.ListOptions{
+			Filters: []sqltypes.OrFilter{
+				{
+					Filters: []sqltypes.Filter{
+						{
+							Field:   []string{"metadata", "labels", "grover.example.com/fish"},
+							Matches: []string{"heads"},
+							Op:      sqltypes.Eq,
+							Partial: false,
+						},
+					},
+				},
+			},
+			Pagination: sqltypes.Pagination{
+				Page: 1,
+			},
+		},
+	})
+	tests = append(tests, testCase{
+		description: "legacy fieldSelector query is mapped to a regular filter.",
+		req: &types.APIRequest{
+			Request: &http.Request{
+				URL: &url.URL{RawQuery: "fieldSelector=a1b='c1b'"},
+			},
+		},
+		expectedLO: sqltypes.ListOptions{
+			Filters: []sqltypes.OrFilter{
+				{
+					Filters: []sqltypes.Filter{
+						{
+							Field:   []string{"a1b"},
+							Matches: []string{"c1b"},
+							Op:      sqltypes.Eq,
 						},
 					},
 				},
