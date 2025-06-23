@@ -29,6 +29,7 @@ import (
 	"github.com/rancher/steve/pkg/stores/sqlpartition"
 	"github.com/rancher/steve/pkg/stores/sqlproxy"
 	"github.com/rancher/steve/pkg/summarycache"
+	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/rest"
 )
 
@@ -108,6 +109,12 @@ func New(ctx context.Context, restConfig *rest.Config, opts *Options) (*Server, 
 	}
 
 	var cacheFactory *factory.CacheFactory
+
+	logrus.SetLevel(logrus.DebugLevel)
+	if !opts.SQLCache {
+		logrus.Info("Forcing sqlcache on")
+		opts.SQLCache = true
+	}
 	if opts.SQLCache {
 		var err error
 		cacheFactory, err = factory.NewCacheFactory(opts.SQLCacheFactoryOptions)
