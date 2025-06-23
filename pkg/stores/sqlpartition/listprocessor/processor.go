@@ -100,13 +100,20 @@ func ParseQuery(apiOp *types.APIRequest, namespaceCache Cache) (sqltypes.ListOpt
 			if labelSelector == "" {
 				continue
 			}
+			// Support only '=' and '~' operators for now, as we only need to support equality (exact and partial)
 			parts := strings.SplitN(labelSelector, "=", 2)
-			if len(parts) < 2 {
-				logrus.Infof("invalid label selector: %q: no equal-sign", labelSelector)
-				continue
+			if len(parts) == 2 {
+				filter := fmt.Sprintf("metadata.labels[%s]=%s", parts[0], parts[1])
+				filterParams = append(filterParams, filter)
+			} else {
+				parts = strings.SplitN(labelSelector, "~", 2)
+				if len(parts) == 2 {
+					filter := fmt.Sprintf("metadata.labels[%s]~%s", parts[0], parts[1])
+					filterParams = append(filterParams, filter)
+				} else {
+					logrus.Infof("invalid label selector: %q: no  supported legacy comparison operator", labelSelector)
+				}
 			}
-			filter := fmt.Sprintf("metadata.labels[%s]=%s", parts[0], parts[1])
-			filterParams = append(filterParams, filter)
 		}
 	}
 	filterOpts := []sqltypes.OrFilter{}
