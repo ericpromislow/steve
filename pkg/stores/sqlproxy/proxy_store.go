@@ -761,6 +761,7 @@ func (s *Store) Delete(apiOp *types.APIRequest, schema *types.APISchema, id stri
 //   - a continue token, if there are more pages after the returned one
 //   - an error instead of all of the above if anything went wrong
 func (s *Store) ListByPartitions(apiOp *types.APIRequest, apiSchema *types.APISchema, partitions []partition.Partition) (*unstructured.UnstructuredList, int, string, error) {
+	logrus.SetFormatter(&logrus.TextFormatter{})
 	logrus.Warnf("QQQ: Query: %s", apiOp.Request.URL.Query())
 	opts, err := listprocessor.ParseQuery(apiOp, s.namespaceCache)
 	if err != nil {
