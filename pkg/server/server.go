@@ -29,6 +29,7 @@ import (
 	"github.com/rancher/steve/pkg/stores/sqlpartition"
 	"github.com/rancher/steve/pkg/stores/sqlproxy"
 	"github.com/rancher/steve/pkg/summarycache"
+	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/rest"
 )
 
@@ -306,6 +307,7 @@ func (c *Server) StartAggregation(ctx context.Context) {
 }
 
 func (c *Server) ListenAndServe(ctx context.Context, httpsPort, httpPort int, opts *server.ListenOpts) error {
+	logrus.SetLevel(logrus.DebugLevel)
 	if opts == nil {
 		opts = &server.ListenOpts{}
 	}
