@@ -1199,6 +1199,8 @@ func formatMatchTargetWithFormatter(match string, format string) string {
 	match = strings.ReplaceAll(match, `\`, `\\`)
 	match = strings.ReplaceAll(match, `_`, `\_`)
 	match = strings.ReplaceAll(match, `%`, `\%`)
+	logrus.Warn("format:", format)
+	logrus.Warn("value:", match)
 	return fmt.Sprintf(format, match)
 }
 
