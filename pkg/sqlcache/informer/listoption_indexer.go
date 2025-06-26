@@ -778,8 +778,8 @@ func (l *ListOptionIndexer) constructQuery(lo *sqltypes.ListOptions, partitions 
 	}
 	// Otherwise leave these as default values and the executor won't do pagination work
 
-	logrus.Debugf("ListOptionIndexer prepared statement: %v", query)
-	logrus.Debugf("Params: %v", params)
+	logrus.Warnf("QQQ: ListOptionIndexer prepared statement: %v", query)
+	logrus.Warnf("QQQ: Params: %v", params)
 	queryInfo.query = query
 	queryInfo.params = params
 
