@@ -1188,7 +1188,9 @@ func formatMatchTarget(filter sqltypes.Filter) string {
 	if filter.Partial {
 		format = matchFmt
 	}
-	return formatMatchTargetWithFormatter(filter.Matches[0], format)
+	gibl := formatMatchTargetWithFormatter(filter.Matches[0], format)
+	logrus.Warnf("QQQ: formatMatchTarget(format:%s, value:%s) => %s", format, filter.Matches[0], gibl)
+	return gibl
 }
 
 func formatMatchTargetWithFormatter(match string, format string) string {
