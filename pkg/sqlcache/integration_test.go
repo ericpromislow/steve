@@ -306,7 +306,7 @@ func (i *IntegrationSuite) TestSQLCacheFilters() {
 	}
 }
 
-func (i *IntegrationSuite) createCacheAndFactory(fields [][]string, transformFunc cache.TransformFunc) (*factory.Cache, *factory.CacheFactory, error) {
+func (i *IntegrationSuite) createCacheAndFactory(fieldsToUse [][]string, transformFunc cache.TransformFunc) (*factory.Cache, *factory.CacheFactory, error) {
 	cacheFactory, err := factory.NewCacheFactory(factory.CacheFactoryOptions{})
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to make factory: %w", err)
@@ -326,8 +326,16 @@ func (i *IntegrationSuite) createCacheAndFactory(fields [][]string, transformFun
 		Resource: "configmaps",
 	}
 	dynamicResource := dynamicClient.Resource(configMapGVR).Namespace(testNamespace)
-	typeGuidance := map[string]string{}
-	cache, err := cacheFactory.CacheFor(context.Background(), fields, nil, nil, transformFunc, dynamicResource, configMapGVK, typeGuidance, true, true)
+	emptyGetFieldsFunc := func() (fields [][]string, typeGuidance map[string]string, externalUpdateInfo *sqltypes.ExternalGVKUpdates, selfUpdateInfo *sqltypes.ExternalGVKUpdates, isNamespaced bool, transform cache.TransformFunc) {
+		fields = fieldsToUse
+		typeGuidance = map[string]string{}
+		externalUpdateInfo = &sqltypes.ExternalGVKUpdates{}
+		selfUpdateInfo = &sqltypes.ExternalGVKUpdates{}
+		isNamespaced = true
+		transform = transformFunc
+		return
+	}
+	cache, err := cacheFactory.CacheFor(context.Background(), emptyGetFieldsFunc, dynamicResource, configMapGVK, true)
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to make cache: %w", err)
 	}

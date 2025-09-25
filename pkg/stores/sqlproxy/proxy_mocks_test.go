@@ -13,7 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	types "github.com/rancher/apiserver/pkg/types"
+	apiservertypes "github.com/rancher/apiserver/pkg/types"
 	common "github.com/rancher/steve/pkg/resources/common"
 	factory "github.com/rancher/steve/pkg/sqlcache/informer/factory"
 	partition "github.com/rancher/steve/pkg/sqlcache/partition"
@@ -94,7 +94,7 @@ func (m *MockClientGetter) EXPECT() *MockClientGetterMockRecorder {
 }
 
 // AdminClient mocks base method.
-func (m *MockClientGetter) AdminClient(ctx *types.APIRequest, arg1 *types.APISchema, namespace string, warningHandler rest.WarningHandler) (dynamic.ResourceInterface, error) {
+func (m *MockClientGetter) AdminClient(ctx *apiservertypes.APIRequest, arg1 *apiservertypes.APISchema, namespace string, warningHandler rest.WarningHandler) (dynamic.ResourceInterface, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AdminClient", ctx, arg1, namespace, warningHandler)
 	ret0, _ := ret[0].(dynamic.ResourceInterface)
@@ -124,7 +124,7 @@ func (mr *MockClientGetterMockRecorder) AdminK8sInterface() *gomock.Call {
 }
 
 // Client mocks base method.
-func (m *MockClientGetter) Client(ctx *types.APIRequest, arg1 *types.APISchema, namespace string, warningHandler rest.WarningHandler) (dynamic.ResourceInterface, error) {
+func (m *MockClientGetter) Client(ctx *apiservertypes.APIRequest, arg1 *apiservertypes.APISchema, namespace string, warningHandler rest.WarningHandler) (dynamic.ResourceInterface, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Client", ctx, arg1, namespace, warningHandler)
 	ret0, _ := ret[0].(dynamic.ResourceInterface)
@@ -139,7 +139,7 @@ func (mr *MockClientGetterMockRecorder) Client(ctx, arg1, namespace, warningHand
 }
 
 // DynamicClient mocks base method.
-func (m *MockClientGetter) DynamicClient(ctx *types.APIRequest, warningHandler rest.WarningHandler) (dynamic.Interface, error) {
+func (m *MockClientGetter) DynamicClient(ctx *apiservertypes.APIRequest, warningHandler rest.WarningHandler) (dynamic.Interface, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DynamicClient", ctx, warningHandler)
 	ret0, _ := ret[0].(dynamic.Interface)
@@ -168,7 +168,7 @@ func (mr *MockClientGetterMockRecorder) IsImpersonating() *gomock.Call {
 }
 
 // K8sInterface mocks base method.
-func (m *MockClientGetter) K8sInterface(ctx *types.APIRequest) (kubernetes.Interface, error) {
+func (m *MockClientGetter) K8sInterface(ctx *apiservertypes.APIRequest) (kubernetes.Interface, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "K8sInterface", ctx)
 	ret0, _ := ret[0].(kubernetes.Interface)
@@ -183,7 +183,7 @@ func (mr *MockClientGetterMockRecorder) K8sInterface(ctx any) *gomock.Call {
 }
 
 // TableAdminClient mocks base method.
-func (m *MockClientGetter) TableAdminClient(ctx *types.APIRequest, arg1 *types.APISchema, namespace string, warningHandler rest.WarningHandler) (dynamic.ResourceInterface, error) {
+func (m *MockClientGetter) TableAdminClient(ctx *apiservertypes.APIRequest, arg1 *apiservertypes.APISchema, namespace string, warningHandler rest.WarningHandler) (dynamic.ResourceInterface, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TableAdminClient", ctx, arg1, namespace, warningHandler)
 	ret0, _ := ret[0].(dynamic.ResourceInterface)
@@ -198,7 +198,7 @@ func (mr *MockClientGetterMockRecorder) TableAdminClient(ctx, arg1, namespace, w
 }
 
 // TableAdminClientForWatch mocks base method.
-func (m *MockClientGetter) TableAdminClientForWatch(ctx *types.APIRequest, arg1 *types.APISchema, namespace string, warningHandler rest.WarningHandler) (dynamic.ResourceInterface, error) {
+func (m *MockClientGetter) TableAdminClientForWatch(ctx *apiservertypes.APIRequest, arg1 *apiservertypes.APISchema, namespace string, warningHandler rest.WarningHandler) (dynamic.ResourceInterface, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TableAdminClientForWatch", ctx, arg1, namespace, warningHandler)
 	ret0, _ := ret[0].(dynamic.ResourceInterface)
@@ -213,7 +213,7 @@ func (mr *MockClientGetterMockRecorder) TableAdminClientForWatch(ctx, arg1, name
 }
 
 // TableClient mocks base method.
-func (m *MockClientGetter) TableClient(ctx *types.APIRequest, arg1 *types.APISchema, namespace string, warningHandler rest.WarningHandler) (dynamic.ResourceInterface, error) {
+func (m *MockClientGetter) TableClient(ctx *apiservertypes.APIRequest, arg1 *apiservertypes.APISchema, namespace string, warningHandler rest.WarningHandler) (dynamic.ResourceInterface, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TableClient", ctx, arg1, namespace, warningHandler)
 	ret0, _ := ret[0].(dynamic.ResourceInterface)
@@ -228,7 +228,7 @@ func (mr *MockClientGetterMockRecorder) TableClient(ctx, arg1, namespace, warnin
 }
 
 // TableClientForWatch mocks base method.
-func (m *MockClientGetter) TableClientForWatch(ctx *types.APIRequest, arg1 *types.APISchema, namespace string, warningHandler rest.WarningHandler) (dynamic.ResourceInterface, error) {
+func (m *MockClientGetter) TableClientForWatch(ctx *apiservertypes.APIRequest, arg1 *apiservertypes.APISchema, namespace string, warningHandler rest.WarningHandler) (dynamic.ResourceInterface, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TableClientForWatch", ctx, arg1, namespace, warningHandler)
 	ret0, _ := ret[0].(dynamic.ResourceInterface)
@@ -267,18 +267,18 @@ func (m *MockCacheFactory) EXPECT() *MockCacheFactoryMockRecorder {
 }
 
 // CacheFor mocks base method.
-func (m *MockCacheFactory) CacheFor(ctx context.Context, fields [][]string, externalUpdateInfo, selfUpdateInfo *sqltypes.ExternalGVKUpdates, transform cache.TransformFunc, client dynamic.ResourceInterface, gvk schema.GroupVersionKind, typeGuidance map[string]string, namespaced, watchable bool) (*factory.Cache, error) {
+func (m *MockCacheFactory) CacheFor(ctx context.Context, getFieldsFunc factory.GetFieldsFuncType, client dynamic.ResourceInterface, gvk schema.GroupVersionKind, watchable bool) (*factory.Cache, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CacheFor", ctx, fields, externalUpdateInfo, selfUpdateInfo, transform, client, gvk, typeGuidance, namespaced, watchable)
+	ret := m.ctrl.Call(m, "CacheFor", ctx, getFieldsFunc, client, gvk, watchable)
 	ret0, _ := ret[0].(*factory.Cache)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CacheFor indicates an expected call of CacheFor.
-func (mr *MockCacheFactoryMockRecorder) CacheFor(ctx, fields, externalUpdateInfo, selfUpdateInfo, transform, client, gvk, typeGuidance, namespaced, watchable any) *gomock.Call {
+func (mr *MockCacheFactoryMockRecorder) CacheFor(ctx, getFieldsFunc, client, gvk, watchable any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CacheFor", reflect.TypeOf((*MockCacheFactory)(nil).CacheFor), ctx, fields, externalUpdateInfo, selfUpdateInfo, transform, client, gvk, typeGuidance, namespaced, watchable)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CacheFor", reflect.TypeOf((*MockCacheFactory)(nil).CacheFor), ctx, getFieldsFunc, client, gvk, watchable)
 }
 
 // DoneWithCache mocks base method.
@@ -332,7 +332,7 @@ func (m *MockSchemaColumnSetter) EXPECT() *MockSchemaColumnSetterMockRecorder {
 }
 
 // SetColumns mocks base method.
-func (m *MockSchemaColumnSetter) SetColumns(ctx context.Context, arg1 *types.APISchema) error {
+func (m *MockSchemaColumnSetter) SetColumns(ctx context.Context, arg1 *apiservertypes.APISchema) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetColumns", ctx, arg1)
 	ret0, _ := ret[0].(error)
@@ -370,7 +370,7 @@ func (m *MockRelationshipNotifier) EXPECT() *MockRelationshipNotifierMockRecorde
 }
 
 // OnInboundRelationshipChange mocks base method.
-func (m *MockRelationshipNotifier) OnInboundRelationshipChange(ctx context.Context, arg1 *types.APISchema, namespace string) <-chan *summary.Relationship {
+func (m *MockRelationshipNotifier) OnInboundRelationshipChange(ctx context.Context, arg1 *apiservertypes.APISchema, namespace string) <-chan *summary.Relationship {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "OnInboundRelationshipChange", ctx, arg1, namespace)
 	ret0, _ := ret[0].(<-chan *summary.Relationship)

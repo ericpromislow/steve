@@ -24,7 +24,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/rancher/apiserver/pkg/apierror"
-	"github.com/rancher/apiserver/pkg/types"
+	apiservertypes "github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/steve/pkg/client"
 	"github.com/rancher/wrangler/v3/pkg/schemas"
 	"github.com/stretchr/testify/assert"
@@ -56,7 +56,7 @@ type testFactory struct {
 	fakeClient *fake.FakeDynamicClient
 }
 
-func (t *testFactory) TableClient(ctx *types.APIRequest, schema *types.APISchema, namespace string, warningHandler rest.WarningHandler) (dynamic.ResourceInterface, error) {
+func (t *testFactory) TableClient(ctx *apiservertypes.APIRequest, schema *apiservertypes.APISchema, namespace string, warningHandler rest.WarningHandler) (dynamic.ResourceInterface, error) {
 	return t.fakeClient.Resource(schema2.GroupVersionResource{}).Namespace(namespace), nil
 }
 
@@ -65,7 +65,6 @@ func TestNewProxyStore(t *testing.T) {
 		description string
 		test        func(t *testing.T)
 	}
-	noTypeGuidance := map[string]string{}
 	var tests []testCase
 	tests = append(tests, testCase{
 		description: "NewProxyStore() with no errors returned should return no errors. Should initialize and assign" +
@@ -87,14 +86,9 @@ func TestNewProxyStore(t *testing.T) {
 			scc.EXPECT().SetColumns(context.Background(), &nsSchema).Return(nil)
 			cg.EXPECT().TableAdminClient(nil, &nsSchema, "", &WarningBuffer{}).Return(ri, nil)
 			cf.EXPECT().CacheFor(context.Background(),
-				[][]string{{`id`}, {`metadata`, `state`, `name`}, {"spec", "displayName"}},
-				gomock.Any(),
-				gomock.Any(),
-				gomock.Any(),
+				gomock.Any(), // getFieldsForGVKInClosure(gvk, *schema, s.transformBuilder),
 				&tablelistconvert.Client{ResourceInterface: ri},
 				attributes.GVK(&nsSchema),
-				noTypeGuidance,
-				false,
 				true).Return(c, nil)
 			s, err := NewProxyStore(context.Background(), scc, cg, rn, nil, cf, true)
 			assert.Nil(t, err)
@@ -179,14 +173,9 @@ func TestNewProxyStore(t *testing.T) {
 			scc.EXPECT().SetColumns(context.Background(), &nsSchema).Return(nil)
 			cg.EXPECT().TableAdminClient(nil, &nsSchema, "", &WarningBuffer{}).Return(ri, nil)
 			cf.EXPECT().CacheFor(context.Background(),
-				[][]string{{`id`}, {`metadata`, `state`, `name`}, {"spec", "displayName"}},
-				gomock.Any(),
-				gomock.Any(),
-				gomock.Any(),
+				gomock.Any(), // getFieldsForGVKInClosure(gvk, *schema, s.transformBuilder),
 				&tablelistconvert.Client{ResourceInterface: ri},
 				attributes.GVK(&nsSchema),
-				noTypeGuidance,
-				false,
 				true).Return(nil, fmt.Errorf("error"))
 
 			s, err := NewProxyStore(context.Background(), scc, cg, rn, nil, cf, true)
@@ -233,12 +222,12 @@ func TestListByPartitions(t *testing.T) {
 				transformBuilder: tb,
 			}
 			var partitions []partition.Partition
-			req := &types.APIRequest{
+			req := &apiservertypes.APIRequest{
 				Request: &http.Request{
 					URL: &url.URL{},
 				},
 			}
-			schema := &types.APISchema{
+			schema := &apiservertypes.APISchema{
 				Schema: &schemas.Schema{Attributes: map[string]interface{}{
 					"columns": []common.ColumnDefinition{
 						{
@@ -280,14 +269,9 @@ func TestListByPartitions(t *testing.T) {
 			cg.EXPECT().TableAdminClient(req, schema, "", &WarningBuffer{}).Return(ri, nil)
 			// This tests that fields are being extracted from schema columns and the type specific fields map
 			cf.EXPECT().CacheFor(context.Background(),
-				[][]string{{"some", "field"}, {`id`}, {`metadata`, `state`, `name`}, {"gvk", "specific", "fields"}},
-				gomock.Any(),
-				gomock.Any(),
-				gomock.Any(),
+				gomock.Any(), // getFieldsForGVKInClosure(gvk, *schema, s.transformBuilder),
 				&tablelistconvert.Client{ResourceInterface: ri},
 				attributes.GVK(schema),
-				gomock.Any(),
-				attributes.Namespaced(schema),
 				true).Return(c, nil)
 			cf.EXPECT().DoneWithCache(c)
 			tb.EXPECT().GetTransformFunc(attributes.GVK(schema), []common.ColumnDefinition{{Field: "some.field"}}, false).Return(func(obj interface{}) (interface{}, error) { return obj, nil })
@@ -318,12 +302,12 @@ func TestListByPartitions(t *testing.T) {
 				transformBuilder: tb,
 			}
 			var partitions []partition.Partition
-			req := &types.APIRequest{
+			req := &apiservertypes.APIRequest{
 				Request: &http.Request{
 					URL: &url.URL{},
 				},
 			}
-			schema := &types.APISchema{
+			schema := &apiservertypes.APISchema{
 				Schema: &schemas.Schema{Attributes: map[string]interface{}{
 					"columns": []common.ColumnDefinition{
 						{
@@ -393,12 +377,12 @@ func TestListByPartitions(t *testing.T) {
 				transformBuilder: tb,
 			}
 			var partitions []partition.Partition
-			req := &types.APIRequest{
+			req := &apiservertypes.APIRequest{
 				Request: &http.Request{
 					URL: &url.URL{},
 				},
 			}
-			schema := &types.APISchema{
+			schema := &apiservertypes.APISchema{
 				Schema: &schemas.Schema{Attributes: map[string]interface{}{
 					"columns": []common.ColumnDefinition{
 						{
@@ -443,14 +427,9 @@ func TestListByPartitions(t *testing.T) {
 			// This tests that fields are being extracted from schema columns and the type specific fields map
 			// note also the watchable bool is expected to be false
 			cf.EXPECT().CacheFor(context.Background(),
-				[][]string{{"some", "field"}, {`id`}, {`metadata`, `state`, `name`}, {"gvk", "specific", "fields"}},
-				gomock.Any(),
-				gomock.Any(),
-				gomock.Any(),
+				gomock.Any(), // getFieldsForGVKInClosure(gvk, *schema, s.transformBuilder),
 				&tablelistconvert.Client{ResourceInterface: ri},
 				attributes.GVK(schema),
-				gomock.Any(),
-				attributes.Namespaced(schema),
 				false).Return(c, nil)
 			cf.EXPECT().DoneWithCache(c)
 
@@ -482,12 +461,12 @@ func TestListByPartitions(t *testing.T) {
 				transformBuilder: tb,
 			}
 			var partitions []partition.Partition
-			req := &types.APIRequest{
+			req := &apiservertypes.APIRequest{
 				Request: &http.Request{
 					URL: &url.URL{},
 				},
 			}
-			schema := &types.APISchema{
+			schema := &apiservertypes.APISchema{
 				Schema: &schemas.Schema{Attributes: map[string]interface{}{
 					"columns": []common.ColumnDefinition{
 						{
@@ -530,14 +509,9 @@ func TestListByPartitions(t *testing.T) {
 			// This tests that fields are being extracted from schema columns and the type specific fields map
 			tb.EXPECT().GetTransformFunc(attributes.GVK(schema), gomock.Any(), false).Return(func(obj interface{}) (interface{}, error) { return obj, nil })
 			cf.EXPECT().CacheFor(context.Background(),
-				[][]string{{"some", "field"}, {`id`}, {`metadata`, `state`, `name`}, {"gvk", "specific", "fields"}},
-				gomock.Any(),
-				gomock.Any(),
-				gomock.Any(),
+				gomock.Any(), // getFieldsForGVKInClosure(gvk, *schema, s.transformBuilder),
 				&tablelistconvert.Client{ResourceInterface: ri},
 				attributes.GVK(schema),
-				gomock.Any(),
-				attributes.Namespaced(schema),
 				true).Return(nil, fmt.Errorf("error"))
 
 			_, _, _, err = s.ListByPartitions(req, schema, partitions)
@@ -570,12 +544,12 @@ func TestListByPartitions(t *testing.T) {
 				transformBuilder: tb,
 			}
 			var partitions []partition.Partition
-			req := &types.APIRequest{
+			req := &apiservertypes.APIRequest{
 				Request: &http.Request{
 					URL: &url.URL{},
 				},
 			}
-			schema := &types.APISchema{
+			schema := &apiservertypes.APISchema{
 				Schema: &schemas.Schema{Attributes: map[string]interface{}{
 					"columns": []common.ColumnDefinition{
 						{
@@ -617,14 +591,9 @@ func TestListByPartitions(t *testing.T) {
 			cg.EXPECT().TableAdminClient(req, schema, "", &WarningBuffer{}).Return(ri, nil)
 			// This tests that fields are being extracted from schema columns and the type specific fields map
 			cf.EXPECT().CacheFor(context.Background(),
-				[][]string{{"some", "field"}, {`id`}, {`metadata`, `state`, `name`}, {"gvk", "specific", "fields"}},
-				gomock.Any(),
-				gomock.Any(),
-				gomock.Any(),
+				gomock.Any(), // getFieldsForGVKInClosure(gvk, *schema, s.transformBuilder),
 				&tablelistconvert.Client{ResourceInterface: ri},
 				attributes.GVK(schema),
-				gomock.Any(),
-				attributes.Namespaced(schema),
 				true).Return(c, nil)
 			cf.EXPECT().DoneWithCache(c)
 			bloi.EXPECT().ListByOptions(req.Context(), &opts, partitions, req.Namespace).Return(nil, 0, "", fmt.Errorf("error"))
@@ -707,7 +676,7 @@ func TestListByPartitionWithUserAccess(t *testing.T) {
 				accesscontrol.Access{Namespace: accesscontrol.All, ResourceName: "token"},
 			)
 			test.accessSetSetter(accessSet)
-			apiOpSchemas := &types.APISchemas{}
+			apiOpSchemas := &apiservertypes.APISchemas{}
 			accesscontrol.SetAccessSetAttribute(apiOpSchemas, accessSet)
 			theRequest := &http.Request{
 				URL: &url.URL{},
@@ -715,11 +684,11 @@ func TestListByPartitionWithUserAccess(t *testing.T) {
 			userInfo := user.DefaultInfo{Name: username, UID: "Id"}
 			requestWithContext := krequest.WithUser(context.Background(), &userInfo)
 			theRequest = theRequest.WithContext(requestWithContext)
-			apiOp := &types.APIRequest{
+			apiOp := &apiservertypes.APIRequest{
 				Request: theRequest,
 				Schemas: apiOpSchemas,
 			}
-			theSchema := &types.APISchema{
+			theSchema := &apiservertypes.APISchema{
 				Schema: &schemas.Schema{Attributes: map[string]interface{}{
 					"columns": []common.ColumnDefinition{
 						{
@@ -742,14 +711,9 @@ func TestListByPartitionWithUserAccess(t *testing.T) {
 			attributes.SetGVK(theSchema, gvk)
 			cg.EXPECT().TableAdminClient(apiOp, theSchema, "", &WarningBuffer{}).Return(ri, nil)
 			cf.EXPECT().CacheFor(context.Background(),
-				[][]string{{"some", "field"}, {"id"}, {"metadata", "state", "name"}},
-				gomock.Any(),
-				gomock.Any(),
-				gomock.Any(),
+				gomock.Any(), // getFieldsForGVKInClosure(gvk, *schema, s.transformBuilder),
 				&tablelistconvert.Client{ResourceInterface: ri},
 				attributes.GVK(theSchema),
-				gomock.Any(),
-				attributes.Namespaced(theSchema),
 				true).Return(c, nil)
 			cf.EXPECT().DoneWithCache(c)
 			tb.EXPECT().GetTransformFunc(attributes.GVK(theSchema), gomock.Any(), false).Return(func(obj interface{}) (interface{}, error) { return obj, nil })
@@ -796,14 +760,9 @@ func TestReset(t *testing.T) {
 			cs.EXPECT().SetColumns(gomock.Any(), gomock.Any()).Return(nil)
 			cg.EXPECT().TableAdminClient(nil, &nsSchema, "", &WarningBuffer{}).Return(ri, nil)
 			cf.EXPECT().CacheFor(context.Background(),
-				[][]string{{`id`}, {`metadata`, `state`, `name`}, {"spec", "displayName"}},
-				gomock.Any(),
-				gomock.Any(),
-				gomock.Any(),
+				gomock.Any(), // getFieldsForGVKInClosure(gvk, *schema, s.transformBuilder),
 				&tablelistconvert.Client{ResourceInterface: ri},
 				attributes.GVK(&nsSchema),
-				gomock.Any(),
-				false,
 				true).Return(nsc, nil)
 			cf.EXPECT().DoneWithCache(nsc)
 			tb.EXPECT().GetTransformFunc(gvk, gomock.Any(), false).Return(func(obj interface{}) (interface{}, error) { return obj, nil })
@@ -911,14 +870,9 @@ func TestReset(t *testing.T) {
 			cs.EXPECT().SetColumns(gomock.Any(), gomock.Any()).Return(nil)
 			cg.EXPECT().TableAdminClient(nil, &nsSchema, "", &WarningBuffer{}).Return(ri, nil)
 			cf.EXPECT().CacheFor(context.Background(),
-				[][]string{{`id`}, {`metadata`, `state`, `name`}, {"spec", "displayName"}},
-				gomock.Any(),
-				gomock.Any(),
-				gomock.Any(),
+				gomock.Any(), // getFieldsForGVKInClosure(gvk, *schema, s.transformBuilder),
 				&tablelistconvert.Client{ResourceInterface: ri},
 				attributes.GVK(&nsSchema),
-				gomock.Any(),
-				false,
 				true).Return(nil, fmt.Errorf("error"))
 			tb.EXPECT().GetTransformFunc(gvk, gomock.Any(), false).Return(func(obj interface{}) (interface{}, error) { return obj, nil })
 			err := s.Reset(gvk)
@@ -931,7 +885,7 @@ func TestReset(t *testing.T) {
 	}
 }
 
-func (t *testFactory) TableAdminClientForWatch(ctx *types.APIRequest, schema *types.APISchema, namespace string, warningHandler rest.WarningHandler) (dynamic.ResourceInterface, error) {
+func (t *testFactory) TableAdminClientForWatch(ctx *apiservertypes.APIRequest, schema *apiservertypes.APISchema, namespace string, warningHandler rest.WarningHandler) (dynamic.ResourceInterface, error) {
 	return t.fakeClient.Resource(schema2.GroupVersionResource{}), nil
 }
 
@@ -975,14 +929,14 @@ func receiveUntil(wc chan watch.Event, d time.Duration) error {
 
 func TestCreate(t *testing.T) {
 	type input struct {
-		apiOp  *types.APIRequest
-		schema *types.APISchema
-		params types.APIObject
+		apiOp  *apiservertypes.APIRequest
+		schema *apiservertypes.APISchema
+		params apiservertypes.APIObject
 	}
 
 	type expected struct {
 		value   *unstructured.Unstructured
-		warning []types.Warning
+		warning []apiservertypes.Warning
 		err     error
 	}
 
@@ -996,15 +950,15 @@ func TestCreate(t *testing.T) {
 		{
 			name: "creating resource - namespace scoped",
 			input: input{
-				apiOp: &types.APIRequest{
-					Schema: &types.APISchema{
+				apiOp: &apiservertypes.APIRequest{
+					Schema: &apiservertypes.APISchema{
 						Schema: &schemas.Schema{
 							ID: "testing",
 						},
 					},
 					Request: &http.Request{URL: &url.URL{}},
 				},
-				schema: &types.APISchema{
+				schema: &apiservertypes.APISchema{
 					Schema: &schemas.Schema{
 						ID: "testing",
 						Attributes: map[string]interface{}{
@@ -1014,7 +968,7 @@ func TestCreate(t *testing.T) {
 						},
 					},
 				},
-				params: types.APIObject{
+				params: apiservertypes.APIObject{
 					Object: map[string]interface{}{
 						"apiVersion": "v1",
 						"kind":       "Secret",
@@ -1037,22 +991,22 @@ func TestCreate(t *testing.T) {
 						"namespace": "testing-ns",
 					},
 				}},
-				warning: []types.Warning{},
+				warning: []apiservertypes.Warning{},
 				err:     nil,
 			},
 		},
 		{
 			name: "creating resource - cluster scoped",
 			input: input{
-				apiOp: &types.APIRequest{
-					Schema: &types.APISchema{
+				apiOp: &apiservertypes.APIRequest{
+					Schema: &apiservertypes.APISchema{
 						Schema: &schemas.Schema{
 							ID: "testing",
 						},
 					},
 					Request: &http.Request{URL: &url.URL{}},
 				},
-				schema: &types.APISchema{
+				schema: &apiservertypes.APISchema{
 					Schema: &schemas.Schema{
 						ID: "testing",
 						Attributes: map[string]interface{}{
@@ -1062,7 +1016,7 @@ func TestCreate(t *testing.T) {
 						},
 					},
 				},
-				params: types.APIObject{
+				params: apiservertypes.APIObject{
 					Object: map[string]interface{}{
 						"apiVersion": "v1",
 						"kind":       "Secret",
@@ -1083,22 +1037,22 @@ func TestCreate(t *testing.T) {
 						"name": "testing-secret",
 					},
 				}},
-				warning: []types.Warning{},
+				warning: []apiservertypes.Warning{},
 				err:     nil,
 			},
 		},
 		{
 			name: "missing name",
 			input: input{
-				apiOp: &types.APIRequest{
-					Schema: &types.APISchema{
+				apiOp: &apiservertypes.APIRequest{
+					Schema: &apiservertypes.APISchema{
 						Schema: &schemas.Schema{
 							ID: "testing",
 						},
 					},
 					Request: &http.Request{URL: &url.URL{}},
 				},
-				schema: &types.APISchema{
+				schema: &apiservertypes.APISchema{
 					Schema: &schemas.Schema{
 						ID: "testing",
 						Attributes: map[string]interface{}{
@@ -1107,7 +1061,7 @@ func TestCreate(t *testing.T) {
 						},
 					},
 				},
-				params: types.APIObject{
+				params: apiservertypes.APIObject{
 					Object: map[string]interface{}{
 						"apiVersion": "v1",
 						"kind":       "Secret",
@@ -1130,22 +1084,22 @@ func TestCreate(t *testing.T) {
 						"namespace":    "testing-ns",
 					},
 				}},
-				warning: []types.Warning{},
+				warning: []apiservertypes.Warning{},
 				err:     nil,
 			},
 		},
 		{
 			name: "missing name / generateName",
 			input: input{
-				apiOp: &types.APIRequest{
-					Schema: &types.APISchema{
+				apiOp: &apiservertypes.APIRequest{
+					Schema: &apiservertypes.APISchema{
 						Schema: &schemas.Schema{
 							ID: "testing",
 						},
 					},
 					Request: &http.Request{URL: &url.URL{}},
 				},
-				schema: &types.APISchema{
+				schema: &apiservertypes.APISchema{
 					Schema: &schemas.Schema{
 						ID: "testing",
 						Attributes: map[string]interface{}{
@@ -1154,7 +1108,7 @@ func TestCreate(t *testing.T) {
 						},
 					},
 				},
-				params: types.APIObject{
+				params: apiservertypes.APIObject{
 					Object: map[string]interface{}{
 						"apiVersion": "v1",
 						"kind":       "Secret",
@@ -1176,15 +1130,15 @@ func TestCreate(t *testing.T) {
 						"namespace":    "testing-ns",
 					},
 				}},
-				warning: []types.Warning{},
+				warning: []apiservertypes.Warning{},
 				err:     nil,
 			},
 		},
 		{
 			name: "missing namespace in the params / should copy from apiOp",
 			input: input{
-				apiOp: &types.APIRequest{
-					Schema: &types.APISchema{
+				apiOp: &apiservertypes.APIRequest{
+					Schema: &apiservertypes.APISchema{
 						Schema: &schemas.Schema{
 							ID: "testing",
 						},
@@ -1192,7 +1146,7 @@ func TestCreate(t *testing.T) {
 					Namespace: "testing-ns",
 					Request:   &http.Request{URL: &url.URL{}},
 				},
-				schema: &types.APISchema{
+				schema: &apiservertypes.APISchema{
 					Schema: &schemas.Schema{
 						ID: "testing",
 						Attributes: map[string]interface{}{
@@ -1202,7 +1156,7 @@ func TestCreate(t *testing.T) {
 						},
 					},
 				},
-				params: types.APIObject{
+				params: apiservertypes.APIObject{
 					Object: map[string]interface{}{
 						"apiVersion": "v1",
 						"kind":       "Secret",
@@ -1224,22 +1178,22 @@ func TestCreate(t *testing.T) {
 						"namespace": "testing-ns",
 					},
 				}},
-				warning: []types.Warning{},
+				warning: []apiservertypes.Warning{},
 				err:     nil,
 			},
 		},
 		{
 			name: "missing namespace - namespace scoped",
 			input: input{
-				apiOp: &types.APIRequest{
-					Schema: &types.APISchema{
+				apiOp: &apiservertypes.APIRequest{
+					Schema: &apiservertypes.APISchema{
 						Schema: &schemas.Schema{
 							ID: "testing",
 						},
 					},
 					Request: &http.Request{URL: &url.URL{}},
 				},
-				schema: &types.APISchema{
+				schema: &apiservertypes.APISchema{
 					Schema: &schemas.Schema{
 						ID: "testing",
 						Attributes: map[string]interface{}{
@@ -1247,7 +1201,7 @@ func TestCreate(t *testing.T) {
 						},
 					},
 				},
-				params: types.APIObject{},
+				params: apiservertypes.APIObject{},
 			},
 			expected: expected{
 				value:   nil,
@@ -1261,15 +1215,15 @@ func TestCreate(t *testing.T) {
 		{
 			name: "error response",
 			input: input{
-				apiOp: &types.APIRequest{
-					Schema: &types.APISchema{
+				apiOp: &apiservertypes.APIRequest{
+					Schema: &apiservertypes.APISchema{
 						Schema: &schemas.Schema{
 							ID: "testing",
 						},
 					},
 					Request: &http.Request{URL: &url.URL{}},
 				},
-				schema: &types.APISchema{
+				schema: &apiservertypes.APISchema{
 					Schema: &schemas.Schema{
 						ID: "testing",
 						Attributes: map[string]interface{}{
@@ -1279,7 +1233,7 @@ func TestCreate(t *testing.T) {
 						},
 					},
 				},
-				params: types.APIObject{
+				params: apiservertypes.APIObject{
 					Object: map[string]interface{}{
 						"apiVersion": "v1",
 						"kind":       "Secret",
@@ -1295,7 +1249,7 @@ func TestCreate(t *testing.T) {
 			},
 			expected: expected{
 				value:   nil,
-				warning: []types.Warning{},
+				warning: []apiservertypes.Warning{},
 				err:     apierrors.NewUnauthorized("sample reason"),
 			},
 		},
@@ -1329,32 +1283,32 @@ func TestCreate(t *testing.T) {
 
 func TestUpdate(t *testing.T) {
 	type input struct {
-		apiOp  *types.APIRequest
-		schema *types.APISchema
-		params types.APIObject
+		apiOp  *apiservertypes.APIRequest
+		schema *apiservertypes.APISchema
+		params apiservertypes.APIObject
 		id     string
 	}
 
 	type expected struct {
 		value   *unstructured.Unstructured
-		warning []types.Warning
+		warning []apiservertypes.Warning
 		err     error
 	}
 
 	sampleCreateInput := input{
-		apiOp: &types.APIRequest{
+		apiOp: &apiservertypes.APIRequest{
 			Request: &http.Request{
 				URL:    &url.URL{},
 				Method: http.MethodPost,
 			},
-			Schema: &types.APISchema{
+			Schema: &apiservertypes.APISchema{
 				Schema: &schemas.Schema{
 					ID: "testing",
 				},
 			},
 			Method: http.MethodPost,
 		},
-		schema: &types.APISchema{
+		schema: &apiservertypes.APISchema{
 			Schema: &schemas.Schema{
 				ID: "testing",
 				Attributes: map[string]interface{}{
@@ -1364,7 +1318,7 @@ func TestUpdate(t *testing.T) {
 				},
 			},
 		},
-		params: types.APIObject{
+		params: apiservertypes.APIObject{
 			Object: map[string]interface{}{
 				"kind":       "Secret",
 				"apiVersion": "v1",
@@ -1391,12 +1345,12 @@ func TestUpdate(t *testing.T) {
 			},
 			createInput: &sampleCreateInput,
 			updateInput: input{
-				apiOp: &types.APIRequest{
+				apiOp: &apiservertypes.APIRequest{
 					Request: &http.Request{
 						URL:    &url.URL{},
 						Method: http.MethodPut,
 					},
-					Schema: &types.APISchema{
+					Schema: &apiservertypes.APISchema{
 						Schema: &schemas.Schema{
 							ID: "testing",
 						},
@@ -1404,7 +1358,7 @@ func TestUpdate(t *testing.T) {
 					Method: http.MethodPut,
 				},
 
-				schema: &types.APISchema{
+				schema: &apiservertypes.APISchema{
 					Schema: &schemas.Schema{
 						ID: "testing",
 						Attributes: map[string]interface{}{
@@ -1414,7 +1368,7 @@ func TestUpdate(t *testing.T) {
 						},
 					},
 				},
-				params: types.APIObject{
+				params: apiservertypes.APIObject{
 					Object: map[string]interface{}{
 						"apiVersion": "v2",
 						"kind":       "Secret",
@@ -1436,7 +1390,7 @@ func TestUpdate(t *testing.T) {
 						"resourceVersion": "1",
 					},
 				}},
-				warning: []types.Warning{},
+				warning: []apiservertypes.Warning{},
 				err:     nil,
 			},
 		},
@@ -1447,12 +1401,12 @@ func TestUpdate(t *testing.T) {
 			},
 			createInput: &sampleCreateInput,
 			updateInput: input{
-				apiOp: &types.APIRequest{
+				apiOp: &apiservertypes.APIRequest{
 					Request: &http.Request{
 						URL:    &url.URL{},
 						Method: http.MethodPut,
 					},
-					Schema: &types.APISchema{
+					Schema: &apiservertypes.APISchema{
 						Schema: &schemas.Schema{
 							ID: "testing",
 						},
@@ -1460,7 +1414,7 @@ func TestUpdate(t *testing.T) {
 					Method: http.MethodPut,
 				},
 
-				schema: &types.APISchema{
+				schema: &apiservertypes.APISchema{
 					Schema: &schemas.Schema{
 						ID: "testing",
 						Attributes: map[string]interface{}{
@@ -1470,7 +1424,7 @@ func TestUpdate(t *testing.T) {
 						},
 					},
 				},
-				params: types.APIObject{
+				params: apiservertypes.APIObject{
 					Object: map[string]interface{}{
 						"apiVersion": "v1",
 						"kind":       "ConfigMap",
@@ -1492,7 +1446,7 @@ func TestUpdate(t *testing.T) {
 						"resourceVersion": "1",
 					},
 				}},
-				warning: []types.Warning{},
+				warning: []apiservertypes.Warning{},
 				err:     nil,
 			},
 		},
@@ -1503,12 +1457,12 @@ func TestUpdate(t *testing.T) {
 			},
 			createInput: &sampleCreateInput,
 			updateInput: input{
-				apiOp: &types.APIRequest{
+				apiOp: &apiservertypes.APIRequest{
 					Request: &http.Request{
 						URL:    &url.URL{},
 						Method: http.MethodPost,
 					},
-					Schema: &types.APISchema{
+					Schema: &apiservertypes.APISchema{
 						Schema: &schemas.Schema{
 							ID: "testing",
 						},
@@ -1516,7 +1470,7 @@ func TestUpdate(t *testing.T) {
 					Method: http.MethodPost,
 				},
 
-				schema: &types.APISchema{
+				schema: &apiservertypes.APISchema{
 					Schema: &schemas.Schema{
 						ID: "testing",
 						Attributes: map[string]interface{}{
@@ -1526,7 +1480,7 @@ func TestUpdate(t *testing.T) {
 						},
 					},
 				},
-				params: types.APIObject{
+				params: apiservertypes.APIObject{
 					Object: map[string]interface{}{
 						"metadata": map[string]interface{}{
 							"name":            "testing-secret",
@@ -1546,7 +1500,7 @@ func TestUpdate(t *testing.T) {
 						"resourceVersion": "1",
 					},
 				}},
-				warning: []types.Warning{},
+				warning: []apiservertypes.Warning{},
 				err:     nil,
 			},
 		},
@@ -1556,12 +1510,12 @@ func TestUpdate(t *testing.T) {
 				return false, ret, nil
 			},
 			updateInput: input{
-				apiOp: &types.APIRequest{
+				apiOp: &apiservertypes.APIRequest{
 					Request: &http.Request{
 						URL:    &url.URL{},
 						Method: http.MethodPut,
 					},
-					Schema: &types.APISchema{
+					Schema: &apiservertypes.APISchema{
 						Schema: &schemas.Schema{
 							ID: "testing",
 						},
@@ -1569,7 +1523,7 @@ func TestUpdate(t *testing.T) {
 					Method: http.MethodPut,
 				},
 
-				schema: &types.APISchema{
+				schema: &apiservertypes.APISchema{
 					Schema: &schemas.Schema{
 						ID: "testing",
 						Attributes: map[string]interface{}{
@@ -1579,7 +1533,7 @@ func TestUpdate(t *testing.T) {
 						},
 					},
 				},
-				params: types.APIObject{
+				params: apiservertypes.APIObject{
 					Object: map[string]interface{}{
 						"apiVersion": "v1",
 						"kind":       "Secret",
@@ -1603,12 +1557,12 @@ func TestUpdate(t *testing.T) {
 			},
 			createInput: &sampleCreateInput,
 			updateInput: input{
-				apiOp: &types.APIRequest{
+				apiOp: &apiservertypes.APIRequest{
 					Request: &http.Request{
 						URL:    &url.URL{},
 						Method: http.MethodPut,
 					},
-					Schema: &types.APISchema{
+					Schema: &apiservertypes.APISchema{
 						Schema: &schemas.Schema{
 							ID: "testing",
 						},
@@ -1616,7 +1570,7 @@ func TestUpdate(t *testing.T) {
 					Method: http.MethodPut,
 				},
 
-				schema: &types.APISchema{
+				schema: &apiservertypes.APISchema{
 					Schema: &schemas.Schema{
 						ID: "testing",
 						Attributes: map[string]interface{}{
@@ -1625,7 +1579,7 @@ func TestUpdate(t *testing.T) {
 						},
 					},
 				},
-				params: types.APIObject{
+				params: apiservertypes.APIObject{
 					Object: map[string]interface{}{
 						"apiVersion": "v2",
 						"metadata": map[string]interface{}{

@@ -15,7 +15,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/rancher/apiserver/pkg/apierror"
-	"github.com/rancher/apiserver/pkg/types"
+	apiservertypes "github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/steve/pkg/accesscontrol"
 	"github.com/rancher/steve/pkg/sqlcache/informer"
 	"github.com/rancher/steve/pkg/sqlcache/informer/factory"
@@ -199,7 +199,7 @@ var (
 		{`id`},
 		{`metadata`, `state`, `name`},
 	}
-	baseNSSchema = types.APISchema{
+	baseNSSchema = apiservertypes.APISchema{
 		Schema: &schemas.Schema{
 			Attributes: map[string]interface{}{
 				"group":    "",
@@ -238,19 +238,19 @@ func init() {
 // ClientGetter is a dynamic kubernetes client factory.
 type ClientGetter interface {
 	IsImpersonating() bool
-	K8sInterface(ctx *types.APIRequest) (kubernetes.Interface, error)
+	K8sInterface(ctx *apiservertypes.APIRequest) (kubernetes.Interface, error)
 	AdminK8sInterface() (kubernetes.Interface, error)
-	Client(ctx *types.APIRequest, schema *types.APISchema, namespace string, warningHandler rest.WarningHandler) (dynamic.ResourceInterface, error)
-	DynamicClient(ctx *types.APIRequest, warningHandler rest.WarningHandler) (dynamic.Interface, error)
-	AdminClient(ctx *types.APIRequest, schema *types.APISchema, namespace string, warningHandler rest.WarningHandler) (dynamic.ResourceInterface, error)
-	TableClient(ctx *types.APIRequest, schema *types.APISchema, namespace string, warningHandler rest.WarningHandler) (dynamic.ResourceInterface, error)
-	TableAdminClient(ctx *types.APIRequest, schema *types.APISchema, namespace string, warningHandler rest.WarningHandler) (dynamic.ResourceInterface, error)
-	TableClientForWatch(ctx *types.APIRequest, schema *types.APISchema, namespace string, warningHandler rest.WarningHandler) (dynamic.ResourceInterface, error)
-	TableAdminClientForWatch(ctx *types.APIRequest, schema *types.APISchema, namespace string, warningHandler rest.WarningHandler) (dynamic.ResourceInterface, error)
+	Client(ctx *apiservertypes.APIRequest, schema *apiservertypes.APISchema, namespace string, warningHandler rest.WarningHandler) (dynamic.ResourceInterface, error)
+	DynamicClient(ctx *apiservertypes.APIRequest, warningHandler rest.WarningHandler) (dynamic.Interface, error)
+	AdminClient(ctx *apiservertypes.APIRequest, schema *apiservertypes.APISchema, namespace string, warningHandler rest.WarningHandler) (dynamic.ResourceInterface, error)
+	TableClient(ctx *apiservertypes.APIRequest, schema *apiservertypes.APISchema, namespace string, warningHandler rest.WarningHandler) (dynamic.ResourceInterface, error)
+	TableAdminClient(ctx *apiservertypes.APIRequest, schema *apiservertypes.APISchema, namespace string, warningHandler rest.WarningHandler) (dynamic.ResourceInterface, error)
+	TableClientForWatch(ctx *apiservertypes.APIRequest, schema *apiservertypes.APISchema, namespace string, warningHandler rest.WarningHandler) (dynamic.ResourceInterface, error)
+	TableAdminClientForWatch(ctx *apiservertypes.APIRequest, schema *apiservertypes.APISchema, namespace string, warningHandler rest.WarningHandler) (dynamic.ResourceInterface, error)
 }
 
 type SchemaColumnSetter interface {
-	SetColumns(ctx context.Context, schema *types.APISchema) error
+	SetColumns(ctx context.Context, schema *apiservertypes.APISchema) error
 }
 
 type Cache interface {
@@ -264,11 +264,11 @@ type Cache interface {
 }
 
 // WarningBuffer holds warnings that may be returned from the kubernetes api
-type WarningBuffer []types.Warning
+type WarningBuffer []apiservertypes.Warning
 
 // HandleWarningHeader takes the components of a kubernetes warning header and stores them
 func (w *WarningBuffer) HandleWarningHeader(code int, agent string, text string) {
-	*w = append(*w, types.Warning{
+	*w = append(*w, apiservertypes.Warning{
 		Code:  code,
 		Agent: agent,
 		Text:  text,
@@ -277,7 +277,7 @@ func (w *WarningBuffer) HandleWarningHeader(code int, agent string, text string)
 
 // RelationshipNotifier is an interface for handling wrangler summary.Relationship events.
 type RelationshipNotifier interface {
-	OnInboundRelationshipChange(ctx context.Context, schema *types.APISchema, namespace string) <-chan *summary.Relationship
+	OnInboundRelationshipChange(ctx context.Context, schema *apiservertypes.APISchema, namespace string) <-chan *summary.Relationship
 }
 
 type TransformBuilder interface {
@@ -301,8 +301,7 @@ type Store struct {
 type CacheFactoryInitializer func() (CacheFactory, error)
 
 type CacheFactory interface {
-	CacheFor(ctx context.Context, transform cache.TransformFunc, client dynamic.ResourceInterface, gvk schema.GroupVersionKind, apiSchema *types.APISchema, getFieldsFunc factory.getFieldsFuncType namespaced bool, watchable bool) (*factory.Cache, error)
-	CacheFor(ctx context.Context, fields [][]string, externalUpdateInfo *sqltypes.ExternalGVKUpdates, selfUpdateInfo *sqltypes.ExternalGVKUpdates, transform cache.TransformFunc, client dynamic.ResourceInterface, gvk schema.GroupVersionKind, namespaced bool, watchable bool) (*factory.Cache, error)
+	CacheFor(ctx context.Context, getFieldsFunc factory.GetFieldsFuncType, client dynamic.ResourceInterface, gvk schema.GroupVersionKind, watchable bool) (*factory.Cache, error)
 	DoneWithCache(*factory.Cache)
 	Stop(gvk schema.GroupVersionKind) error
 }
@@ -362,14 +361,20 @@ func defaultInitializeCacheFactory() (CacheFactory, error) {
 	return informerFactory, nil
 }
 
-func FieldsForGVK(gvk schema.GroupVersionKind, schema *types.APISchema) (fields [][]string, externalUpdateInfo *sqltypes.ExternalGVKUpdates, selfUpdateInfo *sqltypes.ExternalGVKUpdates, isNamespaced bool, transform cache.TransformFunc, error) {
-	fields, cols, typeGuidance := getFieldAndColInfo(&nsSchema, gvk)
+func fieldsForGVK(gvk schema.GroupVersionKind, schema *apiservertypes.APISchema, transferBuilder TransformBuilder) (fields [][]string, typeGuidance map[string]string, externalUpdateInfo *sqltypes.ExternalGVKUpdates, selfUpdateInfo *sqltypes.ExternalGVKUpdates, isNamespaced bool, transformFunc cache.TransformFunc) {
+	fields, cols, typeGuidance := getFieldAndColInfo(schema, gvk)
 	// get any type-specific fields that steve is interested in
 	fields = append(fields, getFieldForGVK(gvk)...)
-	isNamespaced := attributes.Namespaced(schema)
-	transformFunc := s.transformBuilder.GetTransformFunc(gvk, cols, attributes.IsCRD(schema))
+	isNamespaced = attributes.Namespaced(schema)
+	transformFunc = transferBuilder.GetTransformFunc(gvk, cols, attributes.IsCRD(schema))
 
-	return fields, cols, typeGuidance, externalGVKDependencies[gvk], selfGVKDependencies[gvk], isNamespaced, transformFunc, nil)
+	return fields, typeGuidance, externalGVKDependencies[gvk], selfGVKDependencies[gvk], isNamespaced, transformFunc
+}
+
+func getFieldsForGVKInClosure(gvk schema.GroupVersionKind, schema *apiservertypes.APISchema, transferBuilder TransformBuilder) func() (fields [][]string, typeGuidance map[string]string, externalUpdateInfo *sqltypes.ExternalGVKUpdates, selfUpdateInfo *sqltypes.ExternalGVKUpdates, isNamespaced bool, transformFunc cache.TransformFunc) {
+	return func() (fields [][]string, typeGuidance map[string]string, externalUpdateInfo *sqltypes.ExternalGVKUpdates, selfUpdateInfo *sqltypes.ExternalGVKUpdates, isNamespaced bool, transformFunc cache.TransformFunc) {
+		return fieldsForGVK(gvk, schema, transferBuilder)
+	}
 }
 
 // initializeNamespaceCache warms up the namespace cache as it is needed to process queries using options related to
@@ -388,21 +393,14 @@ func (s *Store) initializeNamespaceCache() error {
 	if err != nil {
 		return err
 	}
-	var getFieldsFunc getFieldsFuncType
 	gvk := attributes.GVK(&nsSchema)
-
-	// get the type-specific transform func
-	transformFunc := s.transformBuilder.GetTransformFunc(gvk, cols, attributes.IsCRD(&nsSchema))
 
 	// get the ns informer
 	tableClient := &tablelistconvert.Client{ResourceInterface: client}
 	nsInformer, err := s.cacheFactory.CacheFor(s.ctx,
-		transformFunc,
-		FieldsForGVK
+		getFieldsForGVKInClosure(gvk, &nsSchema, s.transformBuilder),
 		tableClient,
 		gvk,
-		&nsSchema,
-		false,
 		true)
 	if err != nil {
 		return err
@@ -426,10 +424,10 @@ func gvkKey(group, version, kind string) string {
 	return group + "_" + version + "_" + kind
 }
 
-// getFieldAndColInfo converts object field names from types.APISchema's format into steve's
+// getFieldAndColInfo converts object field names from apiservertypes.APISchema's format into steve's
 // cache.sql.informer's slice format (e.g. "metadata.resourceVersion" is ["metadata", "resourceVersion"])
 // It also returns type info for each field
-func getFieldAndColInfo(schema *types.APISchema, gvk schema.GroupVersionKind) ([][]string, []common.ColumnDefinition, map[string]string) {
+func getFieldAndColInfo(schema *apiservertypes.APISchema, gvk schema.GroupVersionKind) ([][]string, []common.ColumnDefinition, map[string]string) {
 	var fields [][]string
 	columns := attributes.Columns(schema)
 	if columns == nil {
@@ -449,15 +447,15 @@ func getFieldAndColInfo(schema *types.APISchema, gvk schema.GroupVersionKind) ([
 }
 
 // ByID looks up a single object by its ID.
-func (s *Store) ByID(apiOp *types.APIRequest, schema *types.APISchema, id string) (*unstructured.Unstructured, []types.Warning, error) {
+func (s *Store) ByID(apiOp *apiservertypes.APIRequest, schema *apiservertypes.APISchema, id string) (*unstructured.Unstructured, []apiservertypes.Warning, error) {
 	return s.byID(apiOp, schema, apiOp.Namespace, id)
 }
 
-func decodeParams(apiOp *types.APIRequest, target runtime.Object) error {
+func decodeParams(apiOp *apiservertypes.APIRequest, target runtime.Object) error {
 	return paramCodec.DecodeParameters(apiOp.Request.URL.Query(), metav1.SchemeGroupVersion, target)
 }
 
-func (s *Store) byID(apiOp *types.APIRequest, schema *types.APISchema, namespace, id string) (*unstructured.Unstructured, []types.Warning, error) {
+func (s *Store) byID(apiOp *apiservertypes.APIRequest, schema *apiservertypes.APISchema, namespace, id string) (*unstructured.Unstructured, []apiservertypes.Warning, error) {
 	buffer := WarningBuffer{}
 	k8sClient, err := metricsStore.Wrap(s.clientGetter.TableClient(apiOp, schema, namespace, &buffer))
 	if err != nil {
@@ -478,7 +476,7 @@ func moveFromUnderscore(obj map[string]interface{}) map[string]interface{} {
 	if obj == nil {
 		return nil
 	}
-	for k := range types.ReservedFields {
+	for k := range apiservertypes.ReservedFields {
 		v, ok := obj["_"+k]
 		delete(obj, "_"+k)
 		delete(obj, k)
@@ -544,7 +542,7 @@ func returnErr(err error, c chan watch.Event) {
 // to list *all* resources.
 // With this filter, the request can be performed successfully, and only the allowed resources will
 // be returned in watch.
-func (s *Store) WatchNames(apiOp *types.APIRequest, schema *types.APISchema, w types.WatchRequest, names sets.Set[string]) (chan watch.Event, error) {
+func (s *Store) WatchNames(apiOp *apiservertypes.APIRequest, schema *apiservertypes.APISchema, w apiservertypes.WatchRequest, names sets.Set[string]) (chan watch.Event, error) {
 	buffer := &WarningBuffer{}
 	adminClient, err := s.clientGetter.TableAdminClientForWatch(apiOp, schema, "", buffer)
 	if err != nil {
@@ -585,7 +583,7 @@ func (s *Store) WatchNames(apiOp *types.APIRequest, schema *types.APISchema, w t
 }
 
 // Watch returns a channel of events for a list or resource.
-func (s *Store) Watch(apiOp *types.APIRequest, schema *types.APISchema, w types.WatchRequest) (chan watch.Event, error) {
+func (s *Store) Watch(apiOp *apiservertypes.APIRequest, schema *apiservertypes.APISchema, w apiservertypes.WatchRequest) (chan watch.Event, error) {
 	buffer := &WarningBuffer{}
 	client, err := s.clientGetter.TableAdminClientForWatch(apiOp, schema, "", buffer)
 	if err != nil {
@@ -604,16 +602,14 @@ func newWatchers() *Watchers {
 	}
 }
 
-func (s *Store) watch(apiOp *types.APIRequest, schema *types.APISchema, w types.WatchRequest, client dynamic.ResourceInterface) (chan watch.Event, error) {
+func (s *Store) watch(apiOp *apiservertypes.APIRequest, schema *apiservertypes.APISchema, w apiservertypes.WatchRequest, client dynamic.ResourceInterface) (chan watch.Event, error) {
 	// warnings from inside the informer are discarded
 	gvk := attributes.GVK(schema)
 	tableClient := &tablelistconvert.Client{ResourceInterface: client}
 	inf, err := s.cacheFactory.CacheFor(s.ctx,
-		transformFunc,
-		FieldsForGVK
+		getFieldsForGVKInClosure(gvk, schema, s.transformBuilder),
 		tableClient,
 		gvk,
-		schema,
 		controllerschema.IsListWatchable(schema))
 	if err != nil {
 		return nil, err
@@ -660,7 +656,7 @@ func (s *Store) watch(apiOp *types.APIRequest, schema *types.APISchema, w types.
 }
 
 // Create creates a single object in the store.
-func (s *Store) Create(apiOp *types.APIRequest, schema *types.APISchema, params types.APIObject) (*unstructured.Unstructured, []types.Warning, error) {
+func (s *Store) Create(apiOp *apiservertypes.APIRequest, schema *apiservertypes.APISchema, params apiservertypes.APIObject) (*unstructured.Unstructured, []apiservertypes.Warning, error) {
 	var (
 		resp *unstructured.Unstructured
 	)
@@ -671,8 +667,8 @@ func (s *Store) Create(apiOp *types.APIRequest, schema *types.APISchema, params 
 		input = data.Object{}
 	}
 
-	name := types.Name(input)
-	namespace := types.Namespace(input)
+	name := apiservertypes.Name(input)
+	namespace := apiservertypes.Namespace(input)
 	generateName := input.String("metadata", "generateName")
 
 	if name == "" && generateName == "" {
@@ -708,13 +704,13 @@ func (s *Store) Create(apiOp *types.APIRequest, schema *types.APISchema, params 
 }
 
 // Update updates a single object in the store.
-func (s *Store) Update(apiOp *types.APIRequest, schema *types.APISchema, params types.APIObject, id string) (*unstructured.Unstructured, []types.Warning, error) {
+func (s *Store) Update(apiOp *apiservertypes.APIRequest, schema *apiservertypes.APISchema, params apiservertypes.APIObject, id string) (*unstructured.Unstructured, []apiservertypes.Warning, error) {
 	var (
 		err   error
 		input = params.Data()
 	)
 
-	ns := types.Namespace(input)
+	ns := apiservertypes.Namespace(input)
 	buffer := WarningBuffer{}
 	k8sClient, err := metricsStore.Wrap(s.clientGetter.TableClient(apiOp, schema, ns, &buffer))
 	if err != nil {
@@ -780,7 +776,7 @@ func (s *Store) Update(apiOp *types.APIRequest, schema *types.APISchema, params 
 }
 
 // Delete deletes an object from a store.
-func (s *Store) Delete(apiOp *types.APIRequest, schema *types.APISchema, id string) (*unstructured.Unstructured, []types.Warning, error) {
+func (s *Store) Delete(apiOp *apiservertypes.APIRequest, schema *apiservertypes.APISchema, id string) (*unstructured.Unstructured, []apiservertypes.Warning, error) {
 	opts := metav1.DeleteOptions{}
 	if err := decodeParams(apiOp, &opts); err != nil {
 		return nil, nil, nil
@@ -851,7 +847,7 @@ func getTypeGuidance(cols []common.ColumnDefinition, gvk schema.GroupVersionKind
 //   - the total number of resources (returned list might be a subset depending on pagination options in apiOp)
 //   - a continue token, if there are more pages after the returned one
 //   - an error instead of all of the above if anything went wrong
-func (s *Store) ListByPartitions(apiOp *types.APIRequest, apiSchema *types.APISchema, partitions []partition.Partition) (*unstructured.UnstructuredList, int, string, error) {
+func (s *Store) ListByPartitions(apiOp *apiservertypes.APIRequest, apiSchema *apiservertypes.APISchema, partitions []partition.Partition) (*unstructured.UnstructuredList, int, string, error) {
 	// warnings from inside the informer are discarded
 	buffer := WarningBuffer{}
 	client, err := s.clientGetter.TableAdminClient(apiOp, apiSchema, "", &buffer)
@@ -859,15 +855,12 @@ func (s *Store) ListByPartitions(apiOp *types.APIRequest, apiSchema *types.APISc
 		return nil, 0, "", err
 	}
 	gvk := attributes.GVK(apiSchema)
-	//TODO: All this field information is only needed when `s.cf.CacheFor` needs to build the tables.
-	// We should instead pass in a function to return the needed field info, rather than calculate it every time.
-	fields, cols, typeGuidance := getFieldAndColInfo(apiSchema, gvk)
-	fields = append(fields, getFieldForGVK(gvk)...)
-
-	transformFunc := s.transformBuilder.GetTransformFunc(gvk, cols, attributes.IsCRD(apiSchema))
 	tableClient := &tablelistconvert.Client{ResourceInterface: client}
-	ns := attributes.Namespaced(apiSchema)
-	inf, err := s.cacheFactory.CacheFor(s.ctx, fields, externalGVKDependencies[gvk], selfGVKDependencies[gvk], transformFunc, tableClient, gvk, typeGuidance, ns, controllerschema.IsListWatchable(apiSchema))
+	inf, err := s.cacheFactory.CacheFor(s.ctx,
+		getFieldsForGVKInClosure(gvk, apiSchema, s.transformBuilder),
+		tableClient,
+		gvk,
+		controllerschema.IsListWatchable(apiSchema))
 	if err != nil {
 		return nil, 0, "", fmt.Errorf("cachefor %v: %w", gvk, err)
 	}
@@ -924,7 +917,7 @@ func (s *Store) ListByPartitions(apiOp *types.APIRequest, apiSchema *types.APISc
 }
 
 // WatchByPartitions returns a channel of events for a list or resource belonging to any of the specified partitions
-func (s *Store) WatchByPartitions(apiOp *types.APIRequest, schema *types.APISchema, wr types.WatchRequest, partitions []partition.Partition) (chan watch.Event, error) {
+func (s *Store) WatchByPartitions(apiOp *apiservertypes.APIRequest, schema *apiservertypes.APISchema, wr apiservertypes.WatchRequest, partitions []partition.Partition) (chan watch.Event, error) {
 	ctx, cancel := context.WithCancel(apiOp.Context())
 	apiOp = apiOp.Clone().WithContext(ctx)
 
@@ -959,7 +952,7 @@ func (s *Store) WatchByPartitions(apiOp *types.APIRequest, schema *types.APISche
 }
 
 // watchByPartition returns a channel of events for a list or resource belonging to a specified partition
-func (s *Store) watchByPartition(partition partition.Partition, apiOp *types.APIRequest, schema *types.APISchema, wr types.WatchRequest) (chan watch.Event, error) {
+func (s *Store) watchByPartition(partition partition.Partition, apiOp *apiservertypes.APIRequest, schema *apiservertypes.APISchema, wr apiservertypes.WatchRequest) (chan watch.Event, error) {
 	if partition.Passthrough {
 		return s.Watch(apiOp, schema, wr)
 	}
