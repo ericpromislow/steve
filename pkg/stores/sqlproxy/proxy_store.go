@@ -301,7 +301,8 @@ type Store struct {
 type CacheFactoryInitializer func() (CacheFactory, error)
 
 type CacheFactory interface {
-	CacheFor(ctx context.Context, fields [][]string, externalUpdateInfo *sqltypes.ExternalGVKUpdates, selfUpdateInfo *sqltypes.ExternalGVKUpdates, transform cache.TransformFunc, client dynamic.ResourceInterface, gvk schema.GroupVersionKind, typeGuidance map[string]string, namespaced bool, watchable bool) (*factory.Cache, error)
+	CacheFor(ctx context.Context, transform cache.TransformFunc, client dynamic.ResourceInterface, gvk schema.GroupVersionKind, apiSchema *types.APISchema, getFieldsFunc factory.getFieldsFuncType namespaced bool, watchable bool) (*factory.Cache, error)
+	CacheFor(ctx context.Context, fields [][]string, externalUpdateInfo *sqltypes.ExternalGVKUpdates, selfUpdateInfo *sqltypes.ExternalGVKUpdates, transform cache.TransformFunc, client dynamic.ResourceInterface, gvk schema.GroupVersionKind, namespaced bool, watchable bool) (*factory.Cache, error)
 	DoneWithCache(*factory.Cache)
 	Stop(gvk schema.GroupVersionKind) error
 }
@@ -361,6 +362,16 @@ func defaultInitializeCacheFactory() (CacheFactory, error) {
 	return informerFactory, nil
 }
 
+func FieldsForGVK(gvk schema.GroupVersionKind, schema *types.APISchema) (fields [][]string, externalUpdateInfo *sqltypes.ExternalGVKUpdates, selfUpdateInfo *sqltypes.ExternalGVKUpdates, isNamespaced bool, transform cache.TransformFunc, error) {
+	fields, cols, typeGuidance := getFieldAndColInfo(&nsSchema, gvk)
+	// get any type-specific fields that steve is interested in
+	fields = append(fields, getFieldForGVK(gvk)...)
+	isNamespaced := attributes.Namespaced(schema)
+	transformFunc := s.transformBuilder.GetTransformFunc(gvk, cols, attributes.IsCRD(schema))
+
+	return fields, cols, typeGuidance, externalGVKDependencies[gvk], selfGVKDependencies[gvk], isNamespaced, transformFunc, nil)
+}
+
 // initializeNamespaceCache warms up the namespace cache as it is needed to process queries using options related to
 // namespaces and projects.
 func (s *Store) initializeNamespaceCache() error {
@@ -377,12 +388,8 @@ func (s *Store) initializeNamespaceCache() error {
 	if err != nil {
 		return err
 	}
-
+	var getFieldsFunc getFieldsFuncType
 	gvk := attributes.GVK(&nsSchema)
-	fields, cols, _ := getFieldAndColInfo(&nsSchema, gvk)
-	// get any type-specific fields that steve is interested in
-	fields = append(fields, getFieldForGVK(gvk)...)
-	noTypeGuidance := map[string]string{}
 
 	// get the type-specific transform func
 	transformFunc := s.transformBuilder.GetTransformFunc(gvk, cols, attributes.IsCRD(&nsSchema))
@@ -390,13 +397,11 @@ func (s *Store) initializeNamespaceCache() error {
 	// get the ns informer
 	tableClient := &tablelistconvert.Client{ResourceInterface: client}
 	nsInformer, err := s.cacheFactory.CacheFor(s.ctx,
-		fields,
-		externalGVKDependencies[gvk],
-		selfGVKDependencies[gvk],
 		transformFunc,
+		FieldsForGVK
 		tableClient,
 		gvk,
-		noTypeGuidance,
+		&nsSchema,
 		false,
 		true)
 	if err != nil {
@@ -602,12 +607,14 @@ func newWatchers() *Watchers {
 func (s *Store) watch(apiOp *types.APIRequest, schema *types.APISchema, w types.WatchRequest, client dynamic.ResourceInterface) (chan watch.Event, error) {
 	// warnings from inside the informer are discarded
 	gvk := attributes.GVK(schema)
-	fields, cols, typeGuidance := getFieldAndColInfo(schema, gvk)
-	fields = append(fields, getFieldForGVK(gvk)...)
-	transformFunc := s.transformBuilder.GetTransformFunc(gvk, cols, attributes.IsCRD(schema))
 	tableClient := &tablelistconvert.Client{ResourceInterface: client}
-	ns := attributes.Namespaced(schema)
-	inf, err := s.cacheFactory.CacheFor(s.ctx, fields, externalGVKDependencies[gvk], selfGVKDependencies[gvk], transformFunc, tableClient, gvk, typeGuidance, ns, controllerschema.IsListWatchable(schema))
+	inf, err := s.cacheFactory.CacheFor(s.ctx,
+		transformFunc,
+		FieldsForGVK
+		tableClient,
+		gvk,
+		schema,
+		controllerschema.IsListWatchable(schema))
 	if err != nil {
 		return nil, err
 	}

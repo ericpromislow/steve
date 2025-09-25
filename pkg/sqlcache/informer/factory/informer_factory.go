@@ -63,6 +63,8 @@ type guardedInformer struct {
 	wg     wait.Group
 }
 
+type getFieldsFuncType func(gvk schema.GroupVersionKind, schema *types.APISchema) (fields [][]string, externalUpdateInfo *sqltypes.ExternalGVKUpdates, selfUpdateInfo *sqltypes.ExternalGVKUpdates, []common.ColumnDefinition, map[string]string, error)
+
 type newInformer func(ctx context.Context, client dynamic.ResourceInterface, fields [][]string, externalUpdateInfo *sqltypes.ExternalGVKUpdates, selfUpdateInfo *sqltypes.ExternalGVKUpdates, transform cache.TransformFunc, gvk schema.GroupVersionKind, db db.Client, shouldEncrypt bool, typeGuidance map[string]string, namespace bool, watchable bool, gcInterval time.Duration, gcKeepCount int) (*informer.Informer, error)
 
 type Cache struct {
@@ -156,7 +158,7 @@ func (f *CacheFactory) CacheFor(ctx context.Context, fields [][]string, external
 	return gvkCache, nil
 }
 
-func (f *CacheFactory) cacheForLocked(ctx context.Context, gi *guardedInformer, fields [][]string, externalUpdateInfo *sqltypes.ExternalGVKUpdates, selfUpdateInfo *sqltypes.ExternalGVKUpdates, transform cache.TransformFunc, client dynamic.ResourceInterface, gvk schema.GroupVersionKind, typeGuidance map[string]string, namespaced bool, watchable bool) (*Cache, error) {
+func (f *CacheFactory) cacheForLocked(ctx context.Context, gi *guardedInformer, fields [][]string, externalUpdateInfo *sqltypes.ExternalGVKUpdates, selfUpdateInfo *sqltypes.ExternalGVKUpdates, transform cache.TransformFunc, client dynamic.ResourceInterface, gvk schema.GroupVersionKind, typeGuidance map[string]string, watchable bool) (*Cache, error) {
 	// At this point an informer-specific mutex (gi.mutex) is guaranteed to exist. Lock it
 	gi.informerMutex.Lock()
 
@@ -171,9 +173,14 @@ func (f *CacheFactory) cacheForLocked(ctx context.Context, gi *guardedInformer, 
 
 		_, encryptResourceAlways := defaultEncryptedResourceTypes[gvk]
 		shouldEncrypt := f.encryptAll || encryptResourceAlways
+		fields, externalUpdateInfo, selfUpdateInfo, transformFunc, isNamespaced, err := getFieldsFunc(gvk, schema)
+		if err != nil {
+			gi.informerMutex.Unlock()
+			return nil, err
+		}
 		// In non-test code this invokes pkg/sqlcache/informer/informer.go: NewInformer()
 		// search for "func NewInformer(ctx"
-		i, err := f.newInformer(gi.ctx, client, fields, externalUpdateInfo, selfUpdateInfo, transform, gvk, f.dbClient, shouldEncrypt, typeGuidance, namespaced, watchable, f.gcInterval, f.gcKeepCount)
+		i, err := f.newInformer(gi.ctx, client, fields, externalUpdateInfo, selfUpdateInfo, transformFunc, gvk, f.dbClient, shouldEncrypt, typeGuidance, namespaced, watchable, f.gcInterval, f.gcKeepCount)
 		if err != nil {
 			gi.informerMutex.Unlock()
 			return nil, err
