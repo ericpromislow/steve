@@ -907,20 +907,62 @@ func TestNewListOptionIndexerEasy(t *testing.T) {
 		expectedContToken: "",
 		expectedErr:       nil,
 	})
-	//tests = append(tests, testCase{
-	//	description: "ListByOptions with a Namespace Partition should select only items where metadata.namespace is equal to Namespace and all other conditions are met",
-	//	partitions: []partition.Partition{
-	//		{
-	//			Namespace: "ns-b",
-	//		},
-	//	},
-	//	// XXX: Why do I need to specify the namespace here too?
-	//	ns:                "ns-b",
-	//	expectedList:      makeList(t, obj05__guard_lodgepole),
-	//	expectedTotal:     1,
-	//	expectedContToken: "",
-	//	expectedErr:       nil,
-	//})
+	tests = append(tests, testCase{
+		description: "ListByOptions with a Namespace Partition and same namespace should select only items where metadata.namespace is equal to Namespace and all other conditions are met",
+		partitions: []partition.Partition{
+			{
+				Namespace: "ns-b",
+				All:       true, // still want all the names in that namespace
+			},
+		},
+		ns:                "ns-b",
+		expectedList:      makeList(t, obj05__guard_lodgepole),
+		expectedTotal:     1,
+		expectedContToken: "",
+		expectedErr:       nil,
+	})
+	tests = append(tests, testCase{
+		description: "ListByOptions with a Namespace Partition and no namespace should select only items where metadata.namespace is equal to Namespace and all other conditions are met",
+		partitions: []partition.Partition{
+			{
+				Namespace: "ns-b",
+				All:       true, // still want all the names in that namespace
+			},
+		},
+		ns:                "",
+		expectedList:      makeList(t, obj05__guard_lodgepole),
+		expectedTotal:     1,
+		expectedContToken: "",
+		expectedErr:       nil,
+	})
+	tests = append(tests, testCase{
+		description: "ListByOptions with partition ns-b, namespace ns-a should select an empty list",
+		partitions: []partition.Partition{
+			{
+				Namespace: "ns-b",
+				All:       true, // still want all the names in that namespace
+			},
+		},
+		ns:                "ns-a",
+		expectedList:      makeList(t),
+		expectedTotal:     0,
+		expectedContToken: "",
+		expectedErr:       nil,
+	})
+	tests = append(tests, testCase{
+		description: "ListByOptions with partition ns-a, namespace ns-b",
+		partitions: []partition.Partition{
+			{
+				Namespace: "ns-a",
+				All:       true, // still want all the names in that namespace
+			},
+		},
+		ns:                "ns-b",
+		expectedList:      makeList(t),
+		expectedTotal:     0,
+		expectedContToken: "",
+		expectedErr:       nil,
+	})
 
 	t.Parallel()
 

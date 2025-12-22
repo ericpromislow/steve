@@ -356,8 +356,10 @@ func (l *ListOptionIndexer) compileQuery(lo *sqltypes.ListOptions,
 
 			// filter by namespace
 			if thisPartition.Namespace != "" && thisPartition.Namespace != "*" {
-				singlePartitionClauses = append(singlePartitionClauses, fmt.Sprintf(`%s."metadata.namespace" = ?`, mainFieldPrefix))
-				filterComponents.params = append(filterComponents.params, thisPartition.Namespace)
+				if thisPartition.Namespace != namespace {
+					singlePartitionClauses = append(singlePartitionClauses, fmt.Sprintf(`%s."metadata.namespace" = ?`, mainFieldPrefix))
+					filterComponents.params = append(filterComponents.params, thisPartition.Namespace)
+				}
 			}
 
 			// optionally filter by names
