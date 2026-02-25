@@ -1,0 +1,10 @@
+schemaID: batch.job
+tests:
+  - description: Just get the jobs and look at the duration field (metadata.fields[3])
+    namespace: test-durations
+    query: "filter=metadata.namespace=test-durations&sort=metadata.name"
+    expect:
+      - name: job1a5s
+        duration: 5s
+      - name: job1b12s
+        duration: 12s

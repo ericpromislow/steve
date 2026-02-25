@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: test-durations
+---
+commonSpec: &commonSpec
+---
+# Regular job - 5 sec
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: job1a5s
+  namespace: test-durations
+spec:
+  template:
+    spec:
+      containers:
+      - name: busybox
+        image: rancher/mirrored-library-busybox:1.36.1
+        command: ["echo", "-c", "echo starting... ; sleep 5; echo stopping..."]
+      restartPolicy: Never
+
+---
+# Regular job - 12 sec
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: job1b12s
+  namespace: test-durations
+spec:
+  template:
+    spec:
+      containers:
+      - name: busybox
+        image: rancher/mirrored-library-busybox:1.36.1
+        command: ["echo", "-c", "echo starting... ; sleep 12; echo stopping..."]
+      restartPolicy: Never
